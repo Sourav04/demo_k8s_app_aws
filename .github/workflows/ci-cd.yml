@@ -230,5 +230,6 @@ jobs:
       with:
         status: ${{ job.status }}
         channel: '#new-channel'
-        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        author_name: 8398a7@action-slack
+        github_token: ${{ secrets.GITHUB_TOKEN }}
       if: always() 
