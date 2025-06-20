@@ -147,10 +147,10 @@ jobs:
       env:
         TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
         
-    - name: Upload Terraform Plan
+    - name: Upload tfplan
       uses: actions/upload-artifact@v4
       with:
-        name: terraform-plan
+        name: tfplan
         path: terraform/tfplan
 
   deploy-infrastructure:
@@ -175,10 +175,11 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-west-2
         
-    - name: Download Terraform Plan
+    - name: Download tfplan
       uses: actions/download-artifact@v4
       with:
-        name: terraform-plan
+        name: tfplan
+        path: terraform
         
     - name: Terraform Apply
       run: terraform apply -auto-approve tfplan
