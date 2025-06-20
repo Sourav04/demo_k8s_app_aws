@@ -186,6 +186,11 @@ jobs:
       with:
         name: tfplan
         path: terraform
+    - name: Verify downloaded files
+      run: |
+        echo "Downloaded artifact contents:"
+        ls -la terraform/
+        file terraform/.terraform.lock.hcl || echo "Lock file missing"
         
     - name: List files in terraform directory
       run: ls -la
