@@ -108,9 +108,9 @@ jobs:
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
-        context: ./app
+        context: .
         push: true
-        tags: ${{ steps.meta.outputs.tags }}
+        tags: sourav04/demo_k8s_app_aws:main
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
