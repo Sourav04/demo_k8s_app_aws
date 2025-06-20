@@ -150,7 +150,7 @@ jobs:
         TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
         
     - name: Upload Terraform Plan
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: terraform-plan
         path: terraform/tfplan
@@ -195,7 +195,7 @@ jobs:
         terraform output -json > cluster-info.json
         
     - name: Upload cluster info
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: cluster-info
         path: terraform/cluster-info.json
