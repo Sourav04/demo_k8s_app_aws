@@ -43,7 +43,6 @@ yum install -y \
     unzip \
     ca-certificates \
     gnupg2 \
-    lsb-core \
     htop \
     vim \
     net-tools \
