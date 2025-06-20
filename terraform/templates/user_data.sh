@@ -106,7 +106,7 @@ systemctl start docker
 
 # Install k3s
 log "Installing k3s..."
-curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=${K3S_VERSION} sh -
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=$${K3S_VERSION} sh -
 
 # Wait for k3s to be ready
 log "Waiting for k3s to be ready..."
@@ -117,10 +117,10 @@ if [ "$NODE_TYPE" = "master" ]; then
     log "Configuring k3s master node..."
     
     # Get the node token for workers
-    NODE_TOKEN=$(cat /var/lib/rancher/k3s/server/node-token)
+    NODE_TOKEN=$$(cat /var/lib/rancher/k3s/server/node-token)
     
     # Create a file with the token for easy access
-    echo "$NODE_TOKEN" > /home/ubuntu/node-token
+    echo "$${NODE_TOKEN}" > /home/ubuntu/node-token
     chown ubuntu:ubuntu /home/ubuntu/node-token
     
     # Install kubectl
@@ -202,11 +202,11 @@ else
     
     # Get the master node IP (this would be configured via user data or external means)
     # For demo purposes, we'll assume the master is available
-    MASTER_IP=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)
+    MASTER_IP=$$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)
     
     # Join the cluster
     log "Joining k3s cluster..."
-    curl -sfL https://get.k3s.io | K3S_URL=https://${MASTER_IP}:6443 K3S_TOKEN=${NODE_TOKEN} sh -
+    curl -sfL https://get.k3s.io | K3S_URL=https://$${MASTER_IP}:6443 K3S_TOKEN=$${NODE_TOKEN} sh -
 fi
 
 # Create systemd service for k3s
