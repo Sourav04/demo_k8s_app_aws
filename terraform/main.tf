@@ -336,7 +336,7 @@ resource "aws_lb_listener" "k3s_listener" {
 
 # Master node (single instance for demo)
 resource "aws_instance" "k3s_master" {
-  ami                    = "ami-0f39276b2d3b617c4"
+  ami                    = "ami-05f9478b4deb8d173"
   instance_type          = var.instance_type
   key_name              = aws_key_pair.k3s_key.key_name
   vpc_security_group_ids = [aws_security_group.k3s_master.id]
