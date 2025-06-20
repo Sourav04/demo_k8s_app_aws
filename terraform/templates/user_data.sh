@@ -18,15 +18,15 @@ NC='\033[0m' # No Color
 
 # Logging function
 log() {
-    echo -e "\${GREEN}[$(date +'%Y-%m-%d %H:%M:%S')] $1\${NC}"
+    echo -e "$${GREEN}[$(date +'%Y-%m-%d %H:%M:%S')] $1$${NC}"
 }
 
 warn() {
-    echo -e "\${YELLOW}[$(date +'%Y-%m-%d %H:%M:%S')] WARNING: $1\${NC}"
+    echo -e "$${YELLOW}[$(date +'%Y-%m-%d %H:%M:%S')] WARNING: $1$${NC}"
 }
 
 error() {
-    echo -e "\${RED}[$(date +'%Y-%m-%d %H:%M:%S')] ERROR: $1\${NC}"
+    echo -e "$${RED}[$(date +'%Y-%m-%d %H:%M:%S')] ERROR: $1$${NC}"
 }
 
 # Update system
@@ -165,7 +165,7 @@ if [ "$NODE_TYPE" = "master" ]; then
     cat <<'EOF' > /home/ubuntu/cluster-info.sh
 #!/bin/bash
 echo "=== k3s Cluster Information ==="
-echo "Cluster Name: \${CLUSTER_NAME}"
+echo "Cluster Name: $${CLUSTER_NAME}"
 echo "Master Node IP: $(hostname -I | awk '{print $1}')"
 echo "k3s Version: $(k3s --version)"
 echo ""
