@@ -147,11 +147,13 @@ jobs:
       env:
         TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
         
-    - name: Upload tfplan
+    - name: Upload tfplan and lock file
       uses: actions/upload-artifact@v4
       with:
         name: tfplan
-        path: terraform/tfplan
+        path: |
+          terraform/tfplan
+          terraform/.terraform.lock.hcl
 
   deploy-infrastructure:
     name: Deploy Infrastructure
@@ -175,7 +177,7 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-west-2
         
-    - name: Download tfplan
+    - name: Download tfplan and lock file
       uses: actions/download-artifact@v4
       with:
         name: tfplan
