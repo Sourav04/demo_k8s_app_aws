@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y \
 
 COPY --from=builder /root/.local /home/appuser/.local
 
-COPY src/ ./src/
+COPY src/ src/
 
 RUN mkdir -p /app/src/templates && chown -R appuser:appuser /app
 
