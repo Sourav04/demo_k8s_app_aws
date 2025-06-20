@@ -9,6 +9,9 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
+COPY src/ ./src/
+RUN mkdir -p /app/src/templates && chown -R appuser:appuser /app
+
 FROM python:3.11-slim
 
 RUN groupadd -r appuser && useradd -r -g appuser appuser
