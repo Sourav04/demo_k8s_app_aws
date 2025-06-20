@@ -188,10 +188,6 @@ jobs:
         path: terraform
         
     - name: List files in terraform directory
-      run: ls -l
-      working-directory: terraform
-        
-    - name: List files after download
       run: ls -la
       working-directory: terraform
         
