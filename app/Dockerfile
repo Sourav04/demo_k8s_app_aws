@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY src/ ./src/
+COPY ./src/ src/ 
 RUN mkdir -p /app/src/templates
 
 RUN groupadd -r appuser && useradd -r -g appuser appuser \
