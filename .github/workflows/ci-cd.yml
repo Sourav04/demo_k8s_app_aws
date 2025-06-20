@@ -232,4 +232,11 @@ jobs:
         channel: '#new-channel'
         author_name: 8398a7@action-slack
         github_token: ${{ secrets.GITHUB_TOKEN }}
-      if: always() 
+      if: always()
+    - name: Check for SLACK_WEBHOOK_URL secret
+      run: |
+        if [ -z "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+          echo "SLACK_WEBHOOK_URL is not set"
+        else
+          echo "SLACK_WEBHOOK_URL is set"
+        fi 
