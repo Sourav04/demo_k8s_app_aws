@@ -1,0 +1,44 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: python-app
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/k3s-demo.git
+    targetRevision: HEAD
+    path: helm/python-app
+    helm:
+      values: |
+        image:
+          repository: your-registry/python-app
+          tag: "latest"
+        replicaCount: 2
+        redis:
+          enabled: true
+        monitoring:
+          enabled: true
+        autoscaling:
+          enabled: true
+          minReplicas: 2
+          maxReplicas: 5
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: python-app
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m 

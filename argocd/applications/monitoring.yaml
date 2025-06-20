@@ -1,0 +1,125 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    targetRevision: 55.5.0
+    chart: kube-prometheus-stack
+    helm:
+      values: |
+        prometheus:
+          prometheusSpec:
+            serviceMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelectorNilUsesHelmValues: false
+            ruleSelectorNilUsesHelmValues: false
+            retention: 7d
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  storageClassName: ""
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 10Gi
+        grafana:
+          enabled: true
+          adminPassword: admin123
+          service:
+            type: LoadBalancer
+          dashboardProviders:
+            dashboardproviders.yaml:
+              apiVersion: 1
+              providers:
+                - name: 'default'
+                  orgId: 1
+                  folder: ''
+                  type: file
+                  disableDeletion: false
+                  editable: true
+                  options:
+                    path: /var/lib/grafana/dashboards/default
+          dashboards:
+            default:
+              python-app-dashboard:
+                gnetId: 0
+                revision: 1
+                datasource: Prometheus
+                json: |
+                  {
+                    "dashboard": {
+                      "id": null,
+                      "title": "Python App Dashboard",
+                      "tags": ["python", "flask"],
+                      "timezone": "browser",
+                      "panels": [
+                        {
+                          "id": 1,
+                          "title": "HTTP Requests Total",
+                          "type": "stat",
+                          "targets": [
+                            {
+                              "expr": "http_requests_total",
+                              "legendFormat": "{{method}} {{endpoint}}"
+                            }
+                          ]
+                        },
+                        {
+                          "id": 2,
+                          "title": "Request Duration",
+                          "type": "graph",
+                          "targets": [
+                            {
+                              "expr": "rate(http_request_duration_seconds_sum[5m]) / rate(http_request_duration_seconds_count[5m])",
+                              "legendFormat": "Average Response Time"
+                            }
+                          ]
+                        },
+                        {
+                          "id": 3,
+                          "title": "Visitor Count",
+                          "type": "stat",
+                          "targets": [
+                            {
+                              "expr": "visitor_count_total",
+                              "legendFormat": "Total Visitors"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+        alertmanager:
+          enabled: true
+          alertmanagerSpec:
+            retention: 120h
+            storage:
+              volumeClaimTemplate:
+                spec:
+                  storageClassName: ""
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 5Gi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m 
