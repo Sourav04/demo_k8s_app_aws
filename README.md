@@ -11,26 +11,6 @@ This project demonstrates a complete Kubernetes setup with a Python Flask applic
 - **Helm Charts**: Application packaging and deployment
 - **Prometheus Stack**: Monitoring and alerting
 
-## Architecture
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   GitHub Repo   │    │   Terraform     │    │   ArgoCD        │
-│                 │    │   Infrastructure │    │   GitOps        │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  GitHub Actions │    │   AWS k3s       │    │   Helm Charts   │
-│  CI/CD Pipeline │    │   Cluster       │    │   Application   │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Terratest     │    │   Python App    │    │   Prometheus    │
-│   Testing       │    │   (Flask)       │    │   Monitoring    │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-```
 
 ## Prerequisites
 
@@ -125,15 +105,3 @@ k3_demo/
 - Grafana dashboards
 - Alert manager configuration
 - Custom metrics for the application
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
-
-## License
-
-MIT License - see LICENSE file for details 
