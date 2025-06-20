@@ -334,7 +334,7 @@ resource "aws_lb_listener" "k3s_listener" {
   }
 }
 
-# Master node (single instance for demo)
+# Master node (single instance for demo )
 resource "aws_instance" "k3s_master" {
   ami                    = "ami-05f9478b4deb8d173"
   instance_type          = var.instance_type
