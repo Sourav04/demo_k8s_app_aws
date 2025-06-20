@@ -18,6 +18,11 @@ output "load_balancer_zone_id" {
   value       = aws_lb.k3s_alb.zone_id
 }
 
+output "load_balancer_arn" {
+  description = "ARN of the load balancer"
+  value       = aws_lb.k3s_alb.arn
+}
+
 output "vpc_id" {
   description = "ID of the VPC"
   value       = module.vpc.vpc_id
