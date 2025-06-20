@@ -20,8 +20,9 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /root/.local /home/appuser/.local
+RUN pwd
 
-COPY src/ src/
+COPY src/ ./src/
 
 RUN mkdir -p /app/src/templates && chown -R appuser:appuser /app
 
