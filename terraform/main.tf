@@ -220,8 +220,10 @@ resource "aws_launch_template" "k3s_lt" {
   }
 
   user_data = base64encode(templatefile("${path.module}/templates/user_data.sh", {
-    cluster_name = var.cluster_name
-    node_type    = "worker"
+    cluster_name      = var.cluster_name
+    node_type         = "worker"
+    enable_argocd     = var.enable_argocd
+    enable_monitoring = var.enable_monitoring
   }))
 
   block_device_mappings {
@@ -357,8 +359,10 @@ resource "aws_instance" "k3s_master" {
   iam_instance_profile  = aws_iam_instance_profile.k3s_profile.name
 
   user_data = base64encode(templatefile("${path.module}/templates/user_data.sh", {
-    cluster_name = var.cluster_name
-    node_type    = "master"
+    cluster_name      = var.cluster_name
+    node_type         = "master"
+    enable_argocd     = var.enable_argocd
+    enable_monitoring = var.enable_monitoring
   }))
 
   root_block_device {
