@@ -31,26 +31,24 @@ error() {
 
 # Update system
 log "Updating system packages..."
-apt-get update
-apt-get upgrade -y
+yum update -y
+yum upgrade -y
 
 # Install required packages
 log "Installing required packages..."
-apt-get install -y \
+yum install -y \
     curl \
     wget \
     git \
     unzip \
-    software-properties-common \
-    apt-transport-https \
     ca-certificates \
-    gnupg \
-    lsb-release \
+    gnupg2 \
+    lsb-core \
     htop \
     vim \
     net-tools \
     traceroute \
-    dnsutils
+    bind-utils
 
 # Disable swap
 log "Disabling swap..."
@@ -79,14 +77,9 @@ sysctl --system
 
 # Install Docker
 log "Installing Docker..."
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-
-echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu \
-  $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-apt-get update
-apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+yum install -y docker
+systemctl enable docker
+systemctl start docker
 
 # Configure Docker
 mkdir -p /etc/docker
@@ -101,8 +94,7 @@ cat <<EOF | tee /etc/docker/daemon.json
 }
 EOF
 
-systemctl enable docker
-systemctl start docker
+systemctl restart docker
 
 # Install k3s
 log "Installing k3s..."
@@ -120,8 +112,8 @@ if [ "$NODE_TYPE" = "master" ]; then
     NODE_TOKEN=$$(cat /var/lib/rancher/k3s/server/node-token)
     
     # Create a file with the token for easy access
-    echo "$${NODE_TOKEN}" > /home/ubuntu/node-token
-    chown ubuntu:ubuntu /home/ubuntu/node-token
+    echo "$${NODE_TOKEN}" > /home/ec2-user/node-token
+    chown ec2-user:ec2-user /home/ec2-user/node-token
     
     # Install kubectl
     ln -s /usr/local/bin/k3s kubectl
@@ -162,7 +154,7 @@ if [ "$NODE_TYPE" = "master" ]; then
     fi
     
     # Create a script to get cluster info
-    cat <<'EOF' > /home/ubuntu/cluster-info.sh
+    cat <<'EOF' > /home/ec2-user/cluster-info.sh
 #!/bin/bash
 echo "=== k3s Cluster Information ==="
 echo "Cluster Name: $${CLUSTER_NAME}"
@@ -179,7 +171,7 @@ echo "=== Services ==="
 kubectl get services --all-namespaces
 echo ""
 echo "=== Node Token (for worker nodes) ==="
-cat /home/ubuntu/node-token
+cat /home/ec2-user/node-token
 echo ""
 echo "=== kubeconfig ==="
 echo "To get kubeconfig, run: sudo cat /etc/rancher/k3s/k3s.yaml"
@@ -190,8 +182,8 @@ echo "Username: admin"
 echo "Password: $(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath=\"{.data.password}\" | base64 -d)"
 EOF
     
-    chmod +x /home/ubuntu/cluster-info.sh
-    chown ubuntu:ubuntu /home/ubuntu/cluster-info.sh
+    chmod +x /home/ec2-user/cluster-info.sh
+    chown ec2-user:ec2-user /home/ec2-user/cluster-info.sh
     
 else
     log "Configuring k3s worker node..."
@@ -229,7 +221,7 @@ cat <<EOF | tee /etc/logrotate.d/k3s
 EOF
 
 # Create monitoring script
-cat <<'EOF' > /home/ubuntu/monitor.sh
+cat <<'EOF' > /home/ec2-user/monitor.sh
 #!/bin/bash
 echo "=== System Information ==="
 echo "Hostname: $(hostname)"
@@ -249,30 +241,21 @@ echo "=== k3s Status ==="
 systemctl status k3s --no-pager
 EOF
 
-chmod +x /home/ubuntu/monitor.sh
-chown ubuntu:ubuntu /home/ubuntu/monitor.sh
+chmod +x /home/ec2-user/monitor.sh
+chown ec2-user:ec2-user /home/ec2-user/monitor.sh
 
 # Set up firewall rules
-log "Configuring firewall..."
-ufw --force enable
-ufw default deny incoming
-ufw default allow outgoing
-ufw allow ssh
-ufw allow 6443/tcp  # k3s API
-ufw allow 10250/tcp # kubelet
-ufw allow 2379/tcp  # etcd
-ufw allow 2380/tcp  # etcd
-ufw allow 30000:32767/tcp  # NodePort services
+log "Skipping UFW firewall setup (not available on Amazon Linux)"
 
 # Final system update
 log "Performing final system update..."
-apt-get update
-apt-get upgrade -y
+yum update -y
+yum upgrade -y
 
 # Clean up
 log "Cleaning up..."
-apt-get autoremove -y
-apt-get autoclean
+yum autoremove -y
+yum clean all
 
 log "k3s installation completed successfully!"
 log "Node type: $NODE_TYPE"
@@ -280,7 +263,7 @@ log "Cluster name: $CLUSTER_NAME"
 
 if [ "$NODE_TYPE" = "master" ]; then
     log "Master node setup complete!"
-    log "Run '/home/ubuntu/cluster-info.sh' to see cluster information"
+    log "Run '/home/ec2-user/cluster-info.sh' to see cluster information"
 else
     log "Worker node setup complete!"
 fi

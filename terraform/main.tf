@@ -39,21 +39,6 @@ data "aws_availability_zones" "available" {
   state = "available"
 }
 
-data "aws_ami" "ubuntu" {
-  most_recent = true
-  owners      = ["099720109477"] # Canonical
-
-  filter {
-    name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-22.04*"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-}
-
 # VPC and Networking
 module "vpc" {
   source = "terraform-aws-modules/vpc/aws"
@@ -208,7 +193,7 @@ resource "aws_key_pair" "k3s_key" {
 # Launch Template for k3s nodes
 resource "aws_launch_template" "k3s_lt" {
   name_prefix   = "${var.cluster_name}-lt"
-  image_id      = data.aws_ami.ubuntu.id
+  image_id      = "ami-0f39276b2d3b617c4"
   instance_type = var.instance_type
 
   key_name = aws_key_pair.k3s_key.key_name
@@ -351,7 +336,7 @@ resource "aws_lb_listener" "k3s_listener" {
 
 # Master node (single instance for demo)
 resource "aws_instance" "k3s_master" {
-  ami                    = data.aws_ami.ubuntu.id
+  ami                    = "ami-0f39276b2d3b617c4"
   instance_type          = var.instance_type
   key_name              = aws_key_pair.k3s_key.key_name
   vpc_security_group_ids = [aws_security_group.k3s_master.id]
