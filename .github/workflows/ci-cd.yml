@@ -147,6 +147,10 @@ jobs:
       env:
         TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
         
+    - name: List files before upload
+      run: ls -la
+      working-directory: terraform
+        
     - name: Upload tfplan and lock file
       uses: actions/upload-artifact@v4
       with:
@@ -185,6 +189,10 @@ jobs:
         
     - name: List files in terraform directory
       run: ls -l
+      working-directory: terraform
+        
+    - name: List files after download
+      run: ls -la
       working-directory: terraform
         
     - name: Terraform Apply
