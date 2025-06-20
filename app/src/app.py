@@ -114,7 +114,7 @@ def api_visitors():
         REQUEST_COUNT.labels(method='GET', endpoint='/api/visitors', status=500).inc()
         return jsonify({'error': 'Internal server error'}), 500
 
-@app.route('/api/reset')
+@app.route('/api/reset', methods=['POST'])
 def reset_counter():
     """API endpoint to reset visitor counter (for testing)"""
     start_time = time.time()
