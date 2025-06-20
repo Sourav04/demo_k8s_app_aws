@@ -16,7 +16,7 @@ terraform {
   }
   
   backend "s3" {
-    bucket = "k8s-demo-statefile"
+    bucket = "k8s-demo-state-sourav"
     key    = "terraform.tfstate"
     region = "us-west-2"
   }
