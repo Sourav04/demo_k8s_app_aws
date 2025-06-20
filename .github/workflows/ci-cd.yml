@@ -225,6 +225,13 @@ jobs:
     if: always()
     
     steps:
+    - name: Check for SLACK_WEBHOOK_URL secret
+      run: |
+        if [ -z "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+          echo "SLACK_WEBHOOK_URL is not set"
+        else
+          echo "SLACK_WEBHOOK_URL is set"
+        fi 
     - name: Notify Slack
       uses: 8398a7/action-slack@v3
       with:
@@ -233,10 +240,3 @@ jobs:
         author_name: 8398a7@action-slack
         github_token: ${{ secrets.GITHUB_TOKEN }}
       if: always()
-    - name: Check for SLACK_WEBHOOK_URL secret
-      run: |
-        if [ -z "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
-          echo "SLACK_WEBHOOK_URL is not set"
-        else
-          echo "SLACK_WEBHOOK_URL is set"
-        fi 
