@@ -183,6 +183,10 @@ jobs:
         name: tfplan
         path: terraform
         
+    - name: List files in terraform directory
+      run: ls -l
+      working-directory: terraform
+        
     - name: Terraform Apply
       run: terraform apply -auto-approve tfplan
       working-directory: terraform
