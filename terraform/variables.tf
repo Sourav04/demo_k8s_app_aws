@@ -31,7 +31,7 @@ variable "instance_type" {
 variable "worker_count" {
   description = "Number of worker nodes"
   type        = number
-  default     = 2
+  default     =   1
 }
 
 variable "worker_min_count" {
@@ -43,7 +43,7 @@ variable "worker_min_count" {
 variable "worker_max_count" {
   description = "Maximum number of worker nodes"
   type        = number
-  default     = 4
+  default     = 2
 }
 
 variable "vpc_cidr" {
