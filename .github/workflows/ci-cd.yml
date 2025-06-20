@@ -229,6 +229,6 @@ jobs:
       uses: 8398a7/action-slack@v3
       with:
         status: ${{ job.status }}
-        channel: '#deployments'
+        channel: '#new-channel'
         webhook_url: ${{ secrets.SLACK_WEBHOOK }}
       if: always() 
