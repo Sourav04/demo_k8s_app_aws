@@ -193,7 +193,7 @@ resource "aws_key_pair" "k3s_key" {
 # Launch Template for k3s nodes
 resource "aws_launch_template" "k3s_lt" {
   name_prefix   = "${var.cluster_name}-lt"
-  image_id      = "ami-0f39276b2d3b617c4"
+  image_id      = "ami-05f9478b4deb8d173"
   instance_type = var.instance_type
 
   key_name = aws_key_pair.k3s_key.key_name
