@@ -7,10 +7,10 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY app/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY src/ /src/
+COPY app/src/ /src/
 RUN mkdir -p /app/src/templates
 
 RUN groupadd -r appuser && useradd -r -g appuser appuser \
