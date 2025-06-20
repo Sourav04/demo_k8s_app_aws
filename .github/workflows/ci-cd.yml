@@ -138,14 +138,12 @@ jobs:
         aws-region: us-west-2
         
     - name: Terraform Init
-      run: |
-        cd terraform
-        terraform init
-        
+      run: terraform init
+      working-directory: terraform
+      
     - name: Terraform Plan
-      run: |
-        cd terraform
-        terraform plan -out=tfplan
+      run: terraform plan -out=tfplan
+      working-directory: terraform
       env:
         TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
         
@@ -183,9 +181,8 @@ jobs:
         name: terraform-plan
         
     - name: Terraform Apply
-      run: |
-        cd terraform
-        terraform apply -auto-approve tfplan
+      run: terraform apply -auto-approve tfplan
+      working-directory: terraform
       env:
         TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
         
