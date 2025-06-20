@@ -196,7 +196,11 @@ jobs:
     - name: List files in terraform directory
       run: ls -la
       working-directory: terraform
-        
+
+    - name: Terraform Init (Apply)
+      run: terraform init
+      working-directory: terraform
+
     - name: Terraform Apply
       run: terraform apply -auto-approve tfplan
       working-directory: terraform
