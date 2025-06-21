@@ -17,6 +17,12 @@ spec:
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if .Values.monitoring.enabled }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "5000"
+        prometheus.io/path: "/metrics"
+      {{- end }}
       labels:
         {{- include "python-app.selectorLabels" . | nindent 8 }}
     spec:
@@ -42,24 +48,16 @@ spec:
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
-          {{- if .Values.redis.enabled }}
-          - name: REDIS_HOST
-            value: "{{ .Release.Name }}-redis"
-          {{- end }}
+            {{- if .Values.redis.enabled }}
+            - name: REDIS_HOST
+              value: "{{ .Release.Name }}-redis"
+            {{- end }}
           livenessProbe:
             {{- toYaml .Values.probes.livenessProbe | nindent 12 }}
           readinessProbe:
             {{- toYaml .Values.probes.readinessProbe | nindent 12 }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if .Values.monitoring.enabled }}
-          - name: prometheus.io/scrape
-            value: "true"
-          - name: prometheus.io/port
-            value: "5000"
-          - name: prometheus.io/path
-            value: "/metrics"
-          {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

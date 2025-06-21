@@ -9,6 +9,14 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  {{- range $key, $value := .Values.env }}
+  - name: {{ $key }}
+    value: {{ $value | quote }}
+  {{- end }}
+  {{- if .Values.redis.enabled }}
+  - name: REDIS_HOST
+    value: "{{ .Release.Name }}-redis"
+  {{- end }}
 
 permissions:
   contents: read
