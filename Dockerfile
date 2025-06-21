@@ -19,6 +19,7 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser \
 USER appuser
 
 ENV PATH=/home/appuser/.local/bin:$PATH
+ENV PYTHONPATH=/app
 
 EXPOSE 5000
 

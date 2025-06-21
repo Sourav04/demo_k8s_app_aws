@@ -77,7 +77,6 @@ redis:
     storageClass: ""
 
 env:
-  REDIS_HOST: "{{ .Release.Name }}-redis"
   REDIS_PORT: "6379"
   REDIS_DB: "0"
   FLASK_ENV: "production"
