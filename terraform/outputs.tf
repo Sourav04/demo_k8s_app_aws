@@ -23,6 +23,16 @@ output "load_balancer_arn" {
   value       = aws_lb.k3s_alb.arn
 }
 
+output "kubernetes_api_lb_dns" {
+  description = "DNS name of the Kubernetes API Load Balancer"
+  value       = aws_lb.k3s_api_lb.dns_name
+}
+
+output "kubernetes_api_lb_arn" {
+  description = "ARN of the Kubernetes API Load Balancer"
+  value       = aws_lb.k3s_api_lb.arn
+}
+
 output "vpc_id" {
   description = "ID of the VPC"
   value       = module.vpc.vpc_id

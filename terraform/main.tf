@@ -190,76 +190,76 @@ resource "aws_key_pair" "k3s_key" {
   public_key = var.ssh_public_key
 }
 
-# Launch Template for k3s nodes
-resource "aws_launch_template" "k3s_lt" {
-  name_prefix   = "${var.cluster_name}-lt"
-  image_id      = "ami-05f9478b4deb8d173"
-  instance_type = var.instance_type
+# Launch Template for k3s nodes (commented out for single-node setup)
+# resource "aws_launch_template" "k3s_lt" {
+#   name_prefix   = "${var.cluster_name}-lt"
+#   image_id      = "ami-05f9478b4deb8d173"
+#   instance_type = var.instance_type
 
-  key_name = aws_key_pair.k3s_key.key_name
+#   key_name = aws_key_pair.k3s_key.key_name
 
-  vpc_security_group_ids = [aws_security_group.k3s_worker.id]
+#   vpc_security_group_ids = [aws_security_group.k3s_worker.id]
 
-  iam_instance_profile {
-    name = aws_iam_instance_profile.k3s_profile.name
-  }
+#   iam_instance_profile {
+#     name = aws_iam_instance_profile.k3s_profile.name
+#   }
 
-  user_data = base64encode(templatefile("${path.module}/templates/user_data.sh", {
-    cluster_name      = var.cluster_name
-    node_type         = "worker"
-    enable_argocd     = var.enable_argocd
-    enable_monitoring = var.enable_monitoring
-  }))
+#   user_data = base64encode(templatefile("${path.module}/templates/user_data.sh", {
+#     cluster_name      = var.cluster_name
+#     node_type         = "worker"
+#     enable_argocd     = var.enable_argocd
+#     enable_monitoring = var.enable_monitoring
+#   }))
 
-  block_device_mappings {
-    device_name = "/dev/sda1"
-    ebs {
-      volume_size = 20
-      volume_type = "gp3"
-      encrypted   = true
-    }
-  }
+#   block_device_mappings {
+#     device_name = "/dev/sda1"
+#     ebs {
+#       volume_size = 20
+#       volume_type = "gp3"
+#       encrypted   = true
+#     }
+#   }
 
-  metadata_options {
-    http_tokens = "required"
-  }
+#   metadata_options {
+#     http_tokens = "required"
+#   }
 
-  tag_specifications {
-    resource_type = "instance"
-    tags = {
-      Name = "${var.cluster_name}-node"
-    }
-  }
-}
+#   tag_specifications {
+#     resource_type = "instance"
+#     tags = {
+#       Name = "${var.cluster_name}-node"
+#     }
+#   }
+# }
 
-# Auto Scaling Group for k3s workers
-resource "aws_autoscaling_group" "k3s_workers" {
-  name                = "${var.cluster_name}-workers"
-  desired_capacity    = var.worker_count
-  max_size           = var.worker_max_count
-  min_size           = var.worker_min_count
-  target_group_arns  = [aws_lb_target_group.k3s_tg.arn]
-  vpc_zone_identifier = module.vpc.private_subnets
+# Auto Scaling Group for k3s workers (commented out for single-node setup)
+# resource "aws_autoscaling_group" "k3s_workers" {
+#   name                = "${var.cluster_name}-workers"
+#   desired_capacity    = var.worker_count
+#   max_size           = var.worker_max_count
+#   min_size           = var.worker_min_count
+#   target_group_arns  = [aws_lb_target_group.k3s_tg.arn]
+#   vpc_zone_identifier = module.vpc.private_subnets
 
-  launch_template {
-    id      = aws_launch_template.k3s_lt.id
-    version = "$Latest"
-  }
+#   launch_template {
+#     id      = aws_launch_template.k3s_lt.id
+#     version = "$Latest"
+#   }
 
-  tag {
-    key                 = "kubernetes.io/cluster/${var.cluster_name}"
-    value              = "owned"
-    propagate_at_launch = true
-  }
+#   tag {
+#     key                 = "kubernetes.io/cluster/${var.cluster_name}"
+#     value              = "owned"
+#     propagate_at_launch = true
+#   }
 
-  tag {
-    key                 = "Name"
-    value              = "${var.cluster_name}-worker"
-    propagate_at_launch = true
-  }
-}
+#   tag {
+#     key                 = "Name"
+#     value              = "${var.cluster_name}-worker"
+#     propagate_at_launch = true
+#   }
+# }
 
-# Application Load Balancer
+# Application Load Balancer for app traffic
 resource "aws_lb" "k3s_alb" {
   name               = "${var.cluster_name}-alb"
   internal           = false
@@ -271,6 +271,20 @@ resource "aws_lb" "k3s_alb" {
 
   tags = {
     Name = "${var.cluster_name}-alb"
+  }
+}
+
+# Load Balancer for Kubernetes API Server
+resource "aws_lb" "k3s_api_lb" {
+  name               = "${var.cluster_name}-api-lb"
+  internal           = false
+  load_balancer_type = "network"
+  subnets            = module.vpc.public_subnets
+
+  enable_deletion_protection = false
+
+  tags = {
+    Name = "${var.cluster_name}-api-lb"
   }
 }
 
@@ -304,6 +318,30 @@ resource "aws_security_group" "alb" {
   }
 }
 
+# Security Group for Kubernetes API Load Balancer
+resource "aws_security_group" "k3s_api_lb" {
+  name_prefix = "${var.cluster_name}-api-lb-"
+  vpc_id      = module.vpc.vpc_id
+
+  ingress {
+    from_port   = 6443
+    to_port     = 6443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.cluster_name}-api-lb-sg"
+  }
+}
+
 resource "aws_lb_target_group" "k3s_tg" {
   name     = "${var.cluster_name}-tg"
   port     = 80
@@ -323,6 +361,24 @@ resource "aws_lb_target_group" "k3s_tg" {
   }
 }
 
+# Target Group for Kubernetes API Server
+resource "aws_lb_target_group" "k3s_api_tg" {
+  name     = "${var.cluster_name}-api-tg"
+  port     = 6443
+  protocol = "TCP"
+  vpc_id   = module.vpc.vpc_id
+
+  health_check {
+    enabled             = true
+    healthy_threshold   = 2
+    interval            = 30
+    port                = "traffic-port"
+    protocol            = "TCP"
+    timeout             = 5
+    unhealthy_threshold = 2
+  }
+}
+
 resource "aws_lb_listener" "k3s_listener" {
   load_balancer_arn = aws_lb.k3s_alb.arn
   port              = "80"
@@ -334,7 +390,19 @@ resource "aws_lb_listener" "k3s_listener" {
   }
 }
 
-# Master node (single instance for demo )
+# Listener for Kubernetes API Load Balancer
+resource "aws_lb_listener" "k3s_api_listener" {
+  load_balancer_arn = aws_lb.k3s_api_lb.arn
+  port              = "6443"
+  protocol          = "TCP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.k3s_api_tg.arn
+  }
+}
+
+# Master node (single instance for demo)
 resource "aws_instance" "k3s_master" {
   ami                    = "ami-05f9478b4deb8d173"
   instance_type          = var.instance_type
@@ -365,4 +433,11 @@ resource "aws_instance" "k3s_master" {
   }
 
   depends_on = [module.vpc]
+}
+
+# Attach master node to API Load Balancer
+resource "aws_lb_target_group_attachment" "k3s_api" {
+  target_group_arn = aws_lb_target_group.k3s_api_tg.arn
+  target_id        = aws_instance.k3s_master.id
+  port             = 6443
 } 

@@ -97,11 +97,21 @@ systemctl restart docker
 
 # Install k3s
 log "Installing k3s..."
-curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=$${K3S_VERSION} sh -
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=$${K3S_VERSION} INSTALL_K3S_EXEC="--tls-san 0.0.0.0 --bind-address 0.0.0.0" sh -
 
 # Wait for k3s to be ready
 log "Waiting for k3s to be ready..."
 sleep 30
+
+# Check if k3s is running
+log "Checking k3s status..."
+if ! systemctl is-active --quiet k3s; then
+    log "k3s service is not running. Checking logs..."
+    journalctl -u k3s --no-pager | tail -n 20
+    exit 1
+fi
+
+log "k3s is running successfully!"
 
 # Configure k3s based on node type
 if [ "$NODE_TYPE" = "master" ]; then
