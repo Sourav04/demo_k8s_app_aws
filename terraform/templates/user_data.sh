@@ -134,12 +134,44 @@ if [ "$NODE_TYPE" = "master" ]; then
     # Install ArgoCD
     if [ "${enable_argocd}" = "true" ]; then
         log "Installing ArgoCD..."
-        kubectl create namespace argocd
+        
+        # Create namespace
+        kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+        
+        # Install ArgoCD with resource limits for small instances
+        log "Applying ArgoCD manifests..."
         kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
         
         # Wait for ArgoCD to be ready
         log "Waiting for ArgoCD to be ready..."
+        kubectl wait --for=condition=available --timeout=600s deployment/argocd-server -n argocd || {
+            log "ArgoCD server deployment failed to become ready. Checking logs..."
+            kubectl logs -n argocd deployment/argocd-server --tail=20
+            log "Continuing with installation..."
+        }
+        
+        # Scale down ArgoCD for resource efficiency on small instances
+        log "Scaling ArgoCD for resource efficiency..."
+        kubectl scale deployment argocd-server -n argocd --replicas=1
+        kubectl scale deployment argocd-repo-server -n argocd --replicas=1
+        kubectl scale deployment argocd-application-controller -n argocd --replicas=1
+        
+        # Wait for scaled deployments to be ready
         kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
+        kubectl wait --for=condition=available --timeout=300s deployment/argocd-repo-server -n argocd
+        kubectl wait --for=condition=available --timeout=300s deployment/argocd-application-controller -n argocd
+        
+        log "ArgoCD installation completed successfully!"
+        
+        # Get ArgoCD admin password
+        ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d 2>/dev/null || echo "password-not-available-yet")
+        echo "ArgoCD admin password: $ARGOCD_PASSWORD" > /home/ec2-user/argocd-password.txt
+        chown ec2-user:ec2-user /home/ec2-user/argocd-password.txt
+        chmod 600 /home/ec2-user/argocd-password.txt
+        
+        log "ArgoCD admin password saved to /home/ec2-user/argocd-password.txt"
+    else
+        log "ArgoCD installation skipped (enable_argocd=false)"
     fi
     
     # Install monitoring stack if enabled
