@@ -506,8 +506,9 @@ jobs:
         cp kubeconfig_original kubeconfig
         sed -i "s|server: https://127.0.0.1:6443|server: https://$KUBERNETES_API_LB:6443|g" kubeconfig
         
-        # Add insecure-skip-tls-verify to cluster section
+        # Add insecure-skip-tls-verify to cluster section and remove certificate authority
         sed -i '/cluster:/a\    insecure-skip-tls-verify: true' kubeconfig
+        sed -i '/certificate-authority-data:/d' kubeconfig
         
         echo "Modified original kubeconfig content:"
         cat kubeconfig
