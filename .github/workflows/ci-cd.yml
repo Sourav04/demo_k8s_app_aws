@@ -685,6 +685,7 @@ jobs:
         helm install python-app ../helm/python-app \
           --set image.repository=souravdixit04/demo_k8s_app_aws \
           --set image.tag=main \
+          --set monitoring.serviceMonitor.enabled=false \
           --wait --timeout=300s
         
         echo "Application deployment completed!"
