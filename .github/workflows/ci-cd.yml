@@ -327,48 +327,69 @@ jobs:
           exit 1
         }
         
-        timeout 300 bash -c 'until aws ssm describe-instance-information --filters "Key=InstanceIds,Values=$MASTER_INSTANCE_ID" --query "InstanceInformationList[0].PingStatus" --output text | grep -q "Online"; do sleep 10; done'
+        # Export the variable for the timeout command
+        export MASTER_INSTANCE_ID
+        
+        echo "Waiting for SSM to be fully ready..."
+        timeout 300 bash -c '
+          while true; do
+            STATUS=$(aws ssm describe-instance-information --filters "Key=InstanceIds,Values=$MASTER_INSTANCE_ID" --query "InstanceInformationList[0].PingStatus" --output text 2>/dev/null || echo "Unknown")
+            echo "SSM Status: $STATUS"
+            if [ "$STATUS" = "Online" ]; then
+              echo "SSM is ready!"
+              break
+            fi
+            sleep 10
+          done
+        '
         
         # Get kubeconfig using SSM
         echo "Retrieving kubeconfig from master node via SSM..."
-        aws ssm start-session --target $MASTER_INSTANCE_ID --document-name AWS-StartInteractiveCommand --parameters 'command="sudo cat /etc/rancher/k3s/k3s.yaml"' > kubeconfig_raw || {
-          echo "Failed to get kubeconfig via SSM. Trying alternative method..."
-          # Alternative: Use SSM send-command
-          aws ssm send-command \
-            --instance-ids $MASTER_INSTANCE_ID \
-            --document-name "AWS-RunShellScript" \
-            --parameters 'commands=["sudo cat /etc/rancher/k3s/k3s.yaml"]' \
-            --query 'Command.CommandId' \
-            --output text > command_id.txt
-          
-          COMMAND_ID=$(cat command_id.txt)
-          echo "Command ID: $COMMAND_ID"
-          
-          # Wait for command to complete
-          sleep 10
-          
-          # Get command output
-          aws ssm get-command-invocation \
-            --command-id $COMMAND_ID \
-            --instance-id $MASTER_INSTANCE_ID \
-            --query 'StandardOutputContent' \
-            --output text > kubeconfig
-        }
         
-        # If first method worked, extract the content
-        if [ -f kubeconfig_raw ]; then
-          # Extract the kubeconfig content from the SSM session output
-          grep -A 1000 "apiVersion:" kubeconfig_raw > kubeconfig || {
-            echo "Failed to extract kubeconfig from SSM output"
+        # Ensure the variable is still available
+        echo "Using Master Instance ID: '$MASTER_INSTANCE_ID'"
+        
+        # Try the send-command method first (more reliable)
+        echo "Attempting to get kubeconfig via SSM send-command..."
+        COMMAND_ID=$(aws ssm send-command \
+          --instance-ids "$MASTER_INSTANCE_ID" \
+          --document-name "AWS-RunShellScript" \
+          --parameters 'commands=["sudo cat /etc/rancher/k3s/k3s.yaml"]' \
+          --query 'Command.CommandId' \
+          --output text)
+        
+        echo "Command ID: $COMMAND_ID"
+        
+        # Wait for command to complete
+        echo "Waiting for command to complete..."
+        sleep 15
+        
+        # Get command output
+        echo "Retrieving command output..."
+        aws ssm get-command-invocation \
+          --command-id "$COMMAND_ID" \
+          --instance-id "$MASTER_INSTANCE_ID" \
+          --query 'StandardOutputContent' \
+          --output text > kubeconfig
+        
+        # Check if we got the kubeconfig
+        if [ ! -f kubeconfig ] || [ ! -s kubeconfig ]; then
+          echo "SSM send-command failed. Trying alternative method..."
+          
+          # Alternative: Try interactive session
+          aws ssm start-session --target "$MASTER_INSTANCE_ID" --document-name AWS-StartInteractiveCommand --parameters 'command="sudo cat /etc/rancher/k3s/k3s.yaml"' > kubeconfig_raw || {
+            echo "Both SSM methods failed. Checking command status..."
+            aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "$MASTER_INSTANCE_ID"
             exit 1
           }
-        fi
-        
-        # Check if kubeconfig was retrieved successfully
-        if [ ! -f kubeconfig ] || [ ! -s kubeconfig ]; then
-          echo "ERROR: Could not retrieve kubeconfig from master node"
-          echo "Master node may still be initializing. Please check the instance status."
-          exit 1
+          
+          # Extract kubeconfig from session output
+          if [ -f kubeconfig_raw ]; then
+            grep -A 1000 "apiVersion:" kubeconfig_raw > kubeconfig || {
+              echo "Failed to extract kubeconfig from SSM session output"
+              exit 1
+            }
+          fi
         fi
         
         # Update kubeconfig to use Load Balancer DNS
