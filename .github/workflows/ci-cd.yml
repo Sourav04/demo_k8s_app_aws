@@ -110,7 +110,10 @@ jobs:
         context: .
         file: Dockerfile
         push: true
-        tags: souravdixit04/demo_k8s_app_aws:main
+        tags: |
+          souravdixit04/demo_k8s_app_aws:main
+          souravdixit04/demo_k8s_app_aws:${{ github.sha }}
+          souravdixit04/demo_k8s_app_aws:${{ github.run_number }}-${{ github.sha }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
@@ -684,7 +687,7 @@ jobs:
         echo "Deploying application with Helm..."
         helm upgrade --install python-app ../helm/python-app \
           --set image.repository=souravdixit04/demo_k8s_app_aws \
-          --set image.tag=main \
+          --set image.tag=${{ github.run_number }}-${{ github.sha }} \
           --set monitoring.serviceMonitor.enabled=false \
           --wait --timeout=300s
         
