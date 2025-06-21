@@ -207,6 +207,10 @@ jobs:
       env:
         TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
         
+    - name: Refresh Terraform State
+      run: terraform refresh
+      working-directory: terraform
+        
     - name: Setup kubectl
       run: |
         # Install kubectl
@@ -218,10 +222,60 @@ jobs:
       run: |
         # Get cluster info from Terraform output
         cd terraform
-        KUBERNETES_API_LB=$(terraform output -raw kubernetes_api_lb_dns)
-        MASTER_INSTANCE_ID=$(terraform output -raw master_instance_id)
+        
+        # Debug: List all available outputs
+        echo "Available Terraform outputs:"
+        terraform output
+        
+        # Get required outputs with error checking
+        KUBERNETES_API_LB=$(terraform output -raw kubernetes_api_lb_dns 2>/dev/null || echo "")
+        MASTER_INSTANCE_ID=$(terraform output -raw master_instance_id 2>/dev/null || echo "")
+        
         echo "Kubernetes API Load Balancer: $KUBERNETES_API_LB"
         echo "Master Instance ID: $MASTER_INSTANCE_ID"
+        
+        # Validate outputs
+        if [ -z "$KUBERNETES_API_LB" ]; then
+          echo "ERROR: kubernetes_api_lb_dns output is empty or not found"
+          exit 1
+        fi
+        
+        if [ -z "$MASTER_INSTANCE_ID" ]; then
+          echo "ERROR: master_instance_id output is empty or not found"
+          echo "Trying to get instance ID from AWS directly..."
+          
+          # Try multiple approaches to get instance ID
+          echo "Attempting to find master instance by tag..."
+          MASTER_INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=k3s-demo-cluster-master" \
+            --query 'Reservations[0].Instances[0].InstanceId' \
+            --output text 2>/dev/null || echo "")
+          
+          if [ -z "$MASTER_INSTANCE_ID" ] || [ "$MASTER_INSTANCE_ID" = "None" ]; then
+            echo "Trying to find instance by cluster name tag..."
+            MASTER_INSTANCE_ID=$(aws ec2 describe-instances \
+              --filters "Name=tag:kubernetes.io/cluster/k3s-demo-cluster,Values=owned" \
+              --query 'Reservations[0].Instances[0].InstanceId' \
+              --output text 2>/dev/null || echo "")
+          fi
+          
+          if [ -z "$MASTER_INSTANCE_ID" ] || [ "$MASTER_INSTANCE_ID" = "None" ]; then
+            echo "Trying to find instance by instance type and state..."
+            MASTER_INSTANCE_ID=$(aws ec2 describe-instances \
+              --filters "Name=instance-type,Values=t3.micro" "Name=instance-state-name,Values=running" \
+              --query 'Reservations[0].Instances[0].InstanceId' \
+              --output text 2>/dev/null || echo "")
+          fi
+          
+          if [ -z "$MASTER_INSTANCE_ID" ] || [ "$MASTER_INSTANCE_ID" = "None" ]; then
+            echo "ERROR: Could not find master instance ID"
+            echo "Available instances:"
+            aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,Tags[?Key==`Name`].Value|[0],State.Name,InstanceType]' --output table
+            exit 1
+          fi
+          
+          echo "Found Master Instance ID: $MASTER_INSTANCE_ID"
+        fi
         
         # Wait for SSM to be available on the instance
         echo "Waiting for SSM to be available on master node..."
