@@ -400,25 +400,23 @@ jobs:
         
         # Create a new kubeconfig with proper TLS settings
         echo "Creating kubeconfig with TLS verification disabled..."
-        cat > kubeconfig_new << EOF
-apiVersion: v1
-kind: Config
-clusters:
-- name: k3s-cluster
-  cluster:
-    server: https://$KUBERNETES_API_LB:6443
-    insecure-skip-tls-verify: true
-contexts:
-- name: k3s-context
-  context:
-    cluster: k3s-cluster
-    user: k3s-user
-current-context: k3s-context
-users:
-- name: k3s-user
-  user:
-    token: ""
-EOF
+        echo "apiVersion: v1" > kubeconfig_new
+        echo "kind: Config" >> kubeconfig_new
+        echo "clusters:" >> kubeconfig_new
+        echo "- name: k3s-cluster" >> kubeconfig_new
+        echo "  cluster:" >> kubeconfig_new
+        echo "    server: https://$KUBERNETES_API_LB:6443" >> kubeconfig_new
+        echo "    insecure-skip-tls-verify: true" >> kubeconfig_new
+        echo "contexts:" >> kubeconfig_new
+        echo "- name: k3s-context" >> kubeconfig_new
+        echo "  context:" >> kubeconfig_new
+        echo "    cluster: k3s-cluster" >> kubeconfig_new
+        echo "    user: k3s-user" >> kubeconfig_new
+        echo "current-context: k3s-context" >> kubeconfig_new
+        echo "users:" >> kubeconfig_new
+        echo "- name: k3s-user" >> kubeconfig_new
+        echo "  user:" >> kubeconfig_new
+        echo "    token: \"\"" >> kubeconfig_new
         
         # Copy the token from the original kubeconfig
         TOKEN=$(grep -A 1 "token:" kubeconfig | tail -n 1 | tr -d ' ')
