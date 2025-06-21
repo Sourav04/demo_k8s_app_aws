@@ -232,9 +232,18 @@ resource "aws_security_group" "k3s_master" {
       "192.30.252.0/22",  # GitHub Actions
       "185.199.108.0/22", # GitHub Actions
       "140.82.112.0/20",  # GitHub Actions
-      "143.55.64.0/20",   # GitHub Actions
-      "2a0a:a440::/29",   # GitHub Actions IPv6
-      "2606:50c0::/32"    # GitHub Actions IPv6
+      "143.55.64.0/20"    # GitHub Actions
+    ]
+  }
+
+  # GitHub Actions IPv6 ranges (separate rule for IPv6)
+  ingress {
+    from_port        = 6443
+    to_port          = 6443
+    protocol         = "tcp"
+    ipv6_cidr_blocks = [
+      "2a0a:a440::/29", # GitHub Actions IPv6
+      "2606:50c0::/32"  # GitHub Actions IPv6
     ]
   }
 
