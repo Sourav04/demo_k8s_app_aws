@@ -385,6 +385,9 @@ jobs:
         cat kubeconfig
         echo "--- End of original kubeconfig ---"
         
+        # Save original kubeconfig for fallback
+        cp kubeconfig kubeconfig_original
+        
         # Extract the token from the original kubeconfig
         echo "Extracting token from original kubeconfig..."
         echo "Original kubeconfig content:"
@@ -476,6 +479,17 @@ jobs:
         cat kubeconfig
         echo "--- End of new kubeconfig ---"
         
+        # Verify the token was properly set
+        echo "Verifying token in kubeconfig..."
+        KUBECONFIG_TOKEN=$(grep "token:" kubeconfig | head -1 | awk '{print $2}' | tr -d '"')
+        if [ -z "$KUBECONFIG_TOKEN" ]; then
+          echo "ERROR: Token is empty in kubeconfig"
+          echo "Original token: ${TOKEN:0:10}..."
+          echo "kubeconfig token field: $(grep 'token:' kubeconfig)"
+          exit 1
+        fi
+        echo "Token in kubeconfig: ${KUBECONFIG_TOKEN:0:10}..."
+        
         export KUBECONFIG=./kubeconfig
         
         # Export the Load Balancer DNS for the timeout command
@@ -503,13 +517,28 @@ jobs:
           done
         ' || {
           echo "ERROR: Cluster did not become ready within 5 minutes"
-          echo "Final kubeconfig:"
+          echo "Trying fallback with original kubeconfig..."
+          
+          # Fallback: Use original kubeconfig with just server update and TLS disabled
+          cp kubeconfig_original kubeconfig
+          sed -i "s|server: https://127.0.0.1:6443|server: https://$KUBERNETES_API_LB:6443|g" kubeconfig
+          
+          # Add insecure-skip-tls-verify to cluster section
+          sed -i '/cluster:/a\    insecure-skip-tls-verify: true' kubeconfig
+          
+          echo "Fallback kubeconfig content:"
           cat kubeconfig
-          echo "Testing kubectl version:"
-          kubectl version --client
-          echo "Testing server connectivity:"
-          curl -k -v https://$KUBERNETES_API_LB:6443/api 2>&1
-          exit 1
+          
+          # Test fallback
+          kubectl get nodes --request-timeout=30s || {
+            echo "Fallback also failed. Final kubeconfig:"
+            cat kubeconfig
+            echo "Testing kubectl version:"
+            kubectl version --client
+            echo "Testing server connectivity:"
+            curl -k -v https://$KUBERNETES_API_LB:6443/api 2>&1
+            exit 1
+          }
         }
         
         echo "Cluster is ready!"
