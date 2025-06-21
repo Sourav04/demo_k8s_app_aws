@@ -252,9 +252,11 @@ jobs:
         # Get required outputs with error checking
         KUBERNETES_API_LB=$(terraform output -raw kubernetes_api_lb_dns 2>/dev/null || echo "")
         MASTER_INSTANCE_ID=$(terraform output -raw master_instance_id 2>/dev/null || echo "")
+        MASTER_PRIVATE_IP=$(terraform output -raw master_node_ip 2>/dev/null || echo "")
         
         echo "Kubernetes API Load Balancer: $KUBERNETES_API_LB"
         echo "Master Instance ID: $MASTER_INSTANCE_ID"
+        echo "Master Private IP: $MASTER_PRIVATE_IP"
         
         # Validate outputs
         if [ -z "$KUBERNETES_API_LB" ]; then
@@ -392,12 +394,38 @@ jobs:
           fi
         fi
         
-        # Update kubeconfig to use Load Balancer DNS
+        # Update kubeconfig to use Load Balancer DNS and disable TLS verification
+        echo "Updating kubeconfig to use Load Balancer DNS: $KUBERNETES_API_LB"
         sed -i "s|server: https://127.0.0.1:6443|server: https://$KUBERNETES_API_LB:6443|g" kubeconfig
         
-        # Temporarily disable TLS verification to access the cluster
-        echo "Temporarily disabling TLS verification for Load Balancer access..."
-        sed -i 's/insecure-skip-tls-verify: false/insecure-skip-tls-verify: true/g' kubeconfig
+        # Create a new kubeconfig with proper TLS settings
+        echo "Creating kubeconfig with TLS verification disabled..."
+        cat > kubeconfig_new << EOF
+apiVersion: v1
+kind: Config
+clusters:
+- name: k3s-cluster
+  cluster:
+    server: https://$KUBERNETES_API_LB:6443
+    insecure-skip-tls-verify: true
+contexts:
+- name: k3s-context
+  context:
+    cluster: k3s-cluster
+    user: k3s-user
+current-context: k3s-context
+users:
+- name: k3s-user
+  user:
+    token: ""
+EOF
+        
+        # Copy the token from the original kubeconfig
+        TOKEN=$(grep -A 1 "token:" kubeconfig | tail -n 1 | tr -d ' ')
+        sed -i "s/token: \"\"/token: \"$TOKEN\"/" kubeconfig_new
+        
+        # Use the new kubeconfig
+        cp kubeconfig_new kubeconfig
         
         export KUBECONFIG=./kubeconfig
         
@@ -408,12 +436,7 @@ jobs:
         echo "Cluster is ready!"
         kubectl get nodes
         
-        echo "Note: Using insecure TLS connection. Certificate will need to be updated later for production use."
-        echo "To fix TLS certificate for production:"
-        echo "1. SSH to the master node"
-        echo "2. Run: sudo /usr/local/bin/k3s-uninstall.sh"
-        echo "3. Run: curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC=\"--tls-san $KUBERNETES_API_LB --bind-address 0.0.0.0\" sh -"
-        echo "4. Update kubeconfig and remove insecure-skip-tls-verify: true"
+        echo "Note: Using Load Balancer DNS with TLS verification disabled for development."
         
     - name: Install and configure ArgoCD
       run: |
