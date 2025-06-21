@@ -682,7 +682,7 @@ jobs:
         
         # Deploy the application
         echo "Deploying application with Helm..."
-        helm install python-app ../helm/python-app \
+        helm upgrade --install python-app ../helm/python-app \
           --set image.repository=souravdixit04/demo_k8s_app_aws \
           --set image.tag=main \
           --set monitoring.serviceMonitor.enabled=false \
