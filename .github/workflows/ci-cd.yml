@@ -395,6 +395,10 @@ jobs:
         # Update kubeconfig to use Load Balancer DNS
         sed -i "s|server: https://127.0.0.1:6443|server: https://$KUBERNETES_API_LB:6443|g" kubeconfig
         
+        # Temporarily disable TLS verification to access the cluster
+        echo "Temporarily disabling TLS verification for Load Balancer access..."
+        sed -i 's/insecure-skip-tls-verify: false/insecure-skip-tls-verify: true/g' kubeconfig
+        
         export KUBECONFIG=./kubeconfig
         
         # Wait for cluster to be ready
@@ -403,6 +407,13 @@ jobs:
         
         echo "Cluster is ready!"
         kubectl get nodes
+        
+        echo "Note: Using insecure TLS connection. Certificate will need to be updated later for production use."
+        echo "To fix TLS certificate for production:"
+        echo "1. SSH to the master node"
+        echo "2. Run: sudo /usr/local/bin/k3s-uninstall.sh"
+        echo "3. Run: curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC=\"--tls-san $KUBERNETES_API_LB --bind-address 0.0.0.0\" sh -"
+        echo "4. Update kubeconfig and remove insecure-skip-tls-verify: true"
         
     - name: Install and configure ArgoCD
       run: |

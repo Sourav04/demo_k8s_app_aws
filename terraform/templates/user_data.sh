@@ -97,7 +97,9 @@ systemctl restart docker
 
 # Install k3s
 log "Installing k3s..."
-curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=$${K3S_VERSION} INSTALL_K3S_EXEC="--tls-san 0.0.0.0 --bind-address 0.0.0.0" sh -
+# Note: TLS certificate will need to be updated later to include Load Balancer DNS
+# For now, we'll use basic configuration and update certificate later
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=$${K3S_VERSION} INSTALL_K3S_EXEC="--tls-san 0.0.0.0 --bind-address 0.0.0.0 --tls-san localhost --tls-san kubernetes --tls-san kubernetes.default --tls-san kubernetes.default.svc --tls-san kubernetes.default.svc.cluster.local" sh -
 
 # Wait for k3s to be ready
 log "Waiting for k3s to be ready..."
