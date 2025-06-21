@@ -388,37 +388,56 @@ jobs:
         # Update kubeconfig to use Load Balancer DNS and disable TLS verification
         echo "Updating kubeconfig to use Load Balancer DNS: $KUBERNETES_API_LB"
         
-        # First, let's try a simpler approach - just modify the original kubeconfig
-        echo "Modifying original kubeconfig..."
-        cp kubeconfig kubeconfig_original
+        # Extract the token from the original kubeconfig
+        echo "Extracting token from original kubeconfig..."
+        TOKEN=$(grep -A 1 "token:" kubeconfig | tail -n 1 | tr -d ' ')
         
-        # Update server URL
-        sed -i "s|server: https://127.0.0.1:6443|server: https://$KUBERNETES_API_LB:6443|g" kubeconfig
+        if [ -z "$TOKEN" ]; then
+          echo "ERROR: Could not extract token from kubeconfig"
+          echo "Original kubeconfig content:"
+          cat kubeconfig
+          exit 1
+        fi
         
-        # Add insecure-skip-tls-verify to the cluster section
-        sed -i '/cluster:/a\    insecure-skip-tls-verify: true' kubeconfig
+        echo "Token extracted: ${TOKEN:0:10}..."
         
-        echo "Modified kubeconfig content:"
+        # Create a completely new kubeconfig with TLS verification disabled
+        echo "Creating new kubeconfig with TLS verification disabled..."
+        cat > kubeconfig_new << 'EOF'
+apiVersion: v1
+kind: Config
+clusters:
+- name: k3s-cluster
+  cluster:
+    server: https://KUBERNETES_API_LB_PLACEHOLDER:6443
+    insecure-skip-tls-verify: true
+contexts:
+- name: k3s-context
+  context:
+    cluster: k3s-cluster
+    user: k3s-user
+current-context: k3s-context
+users:
+- name: k3s-user
+  user:
+    token: "TOKEN_PLACEHOLDER"
+EOF
+        
+        # Replace placeholders with actual values
+        sed -i "s/KUBERNETES_API_LB_PLACEHOLDER/$KUBERNETES_API_LB/g" kubeconfig_new
+        sed -i "s/TOKEN_PLACEHOLDER/$TOKEN/g" kubeconfig_new
+        
+        # Use the new kubeconfig
+        cp kubeconfig_new kubeconfig
+        
+        echo "New kubeconfig content:"
         cat kubeconfig
-        echo "--- End of modified kubeconfig ---"
+        echo "--- End of new kubeconfig ---"
         
         export KUBECONFIG=./kubeconfig
         
-        # Test the modified kubeconfig
-        echo "Testing modified kubeconfig..."
-        kubectl get nodes --request-timeout=30s || {
-          echo "Modified kubeconfig failed. Trying alternative approach..."
-          
-          # Try using the original kubeconfig with just server update
-          cp kubeconfig_original kubeconfig
-          sed -i "s|server: https://127.0.0.1:6443|server: https://$KUBERNETES_API_LB:6443|g" kubeconfig
-          
-          # Add insecure flag in a different way
-          sed -i 's/insecure-skip-tls-verify: false/insecure-skip-tls-verify: true/g' kubeconfig
-          
-          echo "Alternative kubeconfig content:"
-          cat kubeconfig
-        }
+        # Export the Load Balancer DNS for the timeout command
+        export KUBERNETES_API_LB
         
         # Wait for cluster to be ready
         echo "Waiting for cluster to be ready..."
