@@ -79,6 +79,7 @@ resource "aws_security_group" "k3s_master" {
   name_prefix = "${var.cluster_name}-master-"
   vpc_id      = module.vpc.vpc_id
 
+  # SSH access (for debugging)
   ingress {
     from_port   = 22
     to_port     = 22
@@ -86,13 +87,15 @@ resource "aws_security_group" "k3s_master" {
     cidr_blocks = [var.vpc_cidr]
   }
 
+  # Kubernetes API Server
   ingress {
     from_port   = 6443
     to_port     = 6443
     protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # kubelet API
   ingress {
     from_port   = 10250
     to_port     = 10250
@@ -100,6 +103,7 @@ resource "aws_security_group" "k3s_master" {
     cidr_blocks = [var.vpc_cidr]
   }
 
+  # etcd cluster communication
   ingress {
     from_port   = 2379
     to_port     = 2380
@@ -107,6 +111,134 @@ resource "aws_security_group" "k3s_master" {
     cidr_blocks = [var.vpc_cidr]
   }
 
+  # ArgoCD Server (if exposed externally)
+  ingress {
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # ArgoCD Server (HTTPS)
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Prometheus metrics
+  ingress {
+    from_port   = 9090
+    to_port     = 9090
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Grafana dashboard
+  ingress {
+    from_port   = 3000
+    to_port     = 3000
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Node Exporter metrics
+  ingress {
+    from_port   = 9100
+    to_port     = 9100
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  # k3s metrics
+  ingress {
+    from_port   = 10255
+    to_port     = 10255
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  # Calico networking (if using)
+  ingress {
+    from_port   = 179
+    to_port     = 179
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  # Flannel networking (if using)
+  ingress {
+    from_port   = 8472
+    to_port     = 8472
+    protocol    = "udp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  # Health check endpoints
+  ingress {
+    from_port   = 10248
+    to_port     = 10248
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  # kube-proxy health check
+  ingress {
+    from_port   = 10256
+    to_port     = 10256
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  # ArgoCD metrics
+  ingress {
+    from_port   = 8082
+    to_port     = 8082
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # ArgoCD repo server
+  ingress {
+    from_port   = 8081
+    to_port     = 8081
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  # ArgoCD application controller
+  ingress {
+    from_port   = 8083
+    to_port     = 8083
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  # Allow Load Balancer health checks
+  ingress {
+    from_port   = 6443
+    to_port     = 6443
+    protocol    = "tcp"
+    security_groups = [aws_security_group.k3s_api_lb.id]
+  }
+
+  # GitHub Actions IP ranges (optional - for direct access if needed)
+  ingress {
+    from_port   = 6443
+    to_port     = 6443
+    protocol    = "tcp"
+    cidr_blocks = [
+      "192.30.252.0/22",  # GitHub Actions
+      "185.199.108.0/22", # GitHub Actions
+      "140.82.112.0/20",  # GitHub Actions
+      "143.55.64.0/20",   # GitHub Actions
+      "2a0a:a440::/29",   # GitHub Actions IPv6
+      "2606:50c0::/32"    # GitHub Actions IPv6
+    ]
+  }
+
+  # All outbound traffic
   egress {
     from_port   = 0
     to_port     = 0
@@ -177,6 +309,38 @@ resource "aws_iam_role" "k3s_role" {
 resource "aws_iam_role_policy_attachment" "k3s_policy" {
   role       = aws_iam_role.k3s_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+# Additional IAM policy for GitHub Actions access
+resource "aws_iam_role_policy" "github_actions_policy" {
+  name = "${var.cluster_name}-github-actions-policy"
+  role = aws_iam_role.k3s_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:DescribeInstanceInformation",
+          "ssm:StartSession",
+          "ssm:SendCommand",
+          "ssm:GetCommandInvocation",
+          "ssm:DescribeSessions",
+          "ssm:GetConnectionStatus",
+          "ssm:DescribeInstanceProperties",
+          "ec2:DescribeInstances",
+          "ec2:DescribeInstanceStatus",
+          "elasticloadbalancing:DescribeLoadBalancers",
+          "elasticloadbalancing:DescribeTargetGroups",
+          "elasticloadbalancing:DescribeTargetHealth",
+          "elasticloadbalancing:DescribeListeners",
+          "elasticloadbalancing:DescribeRules"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
 }
 
 resource "aws_iam_instance_profile" "k3s_profile" {

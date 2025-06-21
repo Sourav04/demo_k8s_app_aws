@@ -8,6 +8,11 @@ output "master_node_ip" {
   value       = aws_instance.k3s_master.private_ip
 }
 
+output "master_instance_id" {
+  description = "Instance ID of the master node"
+  value       = aws_instance.k3s_master.id
+}
+
 output "load_balancer_dns" {
   description = "DNS name of the load balancer"
   value       = aws_lb.k3s_alb.dns_name

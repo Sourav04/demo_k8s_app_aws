@@ -219,35 +219,67 @@ jobs:
         # Get cluster info from Terraform output
         cd terraform
         KUBERNETES_API_LB=$(terraform output -raw kubernetes_api_lb_dns)
+        MASTER_INSTANCE_ID=$(terraform output -raw master_instance_id)
         echo "Kubernetes API Load Balancer: $KUBERNETES_API_LB"
+        echo "Master Instance ID: $MASTER_INSTANCE_ID"
         
-        # Get kubeconfig from master node (you'll need to implement this based on your setup)
-        # For now, we'll create a basic kubeconfig
-        cat > kubeconfig << EOF
-        apiVersion: v1
-        kind: Config
-        clusters:
-        - name: k3s-cluster
-          cluster:
-            server: https://$KUBERNETES_API_LB:6443
-            insecure-skip-tls-verify: true
-        contexts:
-        - name: k3s-context
-          context:
-            cluster: k3s-cluster
-            user: k3s-user
-        current-context: k3s-context
-        users:
-        - name: k3s-user
-          user:
-            token: ""
-        EOF
+        # Wait for SSM to be available on the instance
+        echo "Waiting for SSM to be available on master node..."
+        timeout 300 bash -c 'until aws ssm describe-instance-information --filters "Key=InstanceIds,Values=$MASTER_INSTANCE_ID" --query "InstanceInformationList[0].PingStatus" --output text | grep -q "Online"; do sleep 10; done'
+        
+        # Get kubeconfig using SSM
+        echo "Retrieving kubeconfig from master node via SSM..."
+        aws ssm start-session --target $MASTER_INSTANCE_ID --document-name AWS-StartInteractiveCommand --parameters 'command="sudo cat /etc/rancher/k3s/k3s.yaml"' > kubeconfig_raw || {
+          echo "Failed to get kubeconfig via SSM. Trying alternative method..."
+          # Alternative: Use SSM send-command
+          aws ssm send-command \
+            --instance-ids $MASTER_INSTANCE_ID \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=["sudo cat /etc/rancher/k3s/k3s.yaml"]' \
+            --query 'Command.CommandId' \
+            --output text > command_id.txt
+          
+          COMMAND_ID=$(cat command_id.txt)
+          echo "Command ID: $COMMAND_ID"
+          
+          # Wait for command to complete
+          sleep 10
+          
+          # Get command output
+          aws ssm get-command-invocation \
+            --command-id $COMMAND_ID \
+            --instance-id $MASTER_INSTANCE_ID \
+            --query 'StandardOutputContent' \
+            --output text > kubeconfig
+        }
+        
+        # If first method worked, extract the content
+        if [ -f kubeconfig_raw ]; then
+          # Extract the kubeconfig content from the SSM session output
+          grep -A 1000 "apiVersion:" kubeconfig_raw > kubeconfig || {
+            echo "Failed to extract kubeconfig from SSM output"
+            exit 1
+          }
+        fi
+        
+        # Check if kubeconfig was retrieved successfully
+        if [ ! -f kubeconfig ] || [ ! -s kubeconfig ]; then
+          echo "ERROR: Could not retrieve kubeconfig from master node"
+          echo "Master node may still be initializing. Please check the instance status."
+          exit 1
+        fi
+        
+        # Update kubeconfig to use Load Balancer DNS
+        sed -i "s|server: https://127.0.0.1:6443|server: https://$KUBERNETES_API_LB:6443|g" kubeconfig
         
         export KUBECONFIG=./kubeconfig
         
         # Wait for cluster to be ready
         echo "Waiting for cluster to be ready..."
         timeout 300 bash -c 'until kubectl get nodes; do sleep 10; done'
+        
+        echo "Cluster is ready!"
+        kubectl get nodes
         
     - name: Install and configure ArgoCD
       run: |
