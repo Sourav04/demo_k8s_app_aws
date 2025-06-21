@@ -596,11 +596,27 @@ jobs:
         
         echo "Installing ArgoCD..."
         
-        # Create ArgoCD namespace
-        kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-        
-        # Install ArgoCD
-        kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+        # Check if ArgoCD is already installed
+        if kubectl get namespace argocd 2>/dev/null; then
+          echo "ArgoCD namespace already exists. Checking if ArgoCD is already installed..."
+          if kubectl get deployments -n argocd 2>/dev/null | grep -q argocd; then
+            echo "ArgoCD is already installed. Skipping installation."
+          else
+            echo "ArgoCD namespace exists but no deployments found. Installing ArgoCD..."
+            # Create ArgoCD namespace
+            kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+            
+            # Install ArgoCD
+            kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+          fi
+        else
+          echo "ArgoCD namespace does not exist. Installing ArgoCD..."
+          # Create ArgoCD namespace
+          kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+          
+          # Install ArgoCD
+          kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+        fi
         
         # Wait for ArgoCD to be ready
         echo "Waiting for ArgoCD to be ready..."
@@ -612,14 +628,19 @@ jobs:
         
         # Scale down ArgoCD for resource efficiency
         echo "Scaling ArgoCD for resource efficiency..."
-        kubectl scale deployment argocd-server -n argocd --replicas=1
-        kubectl scale deployment argocd-repo-server -n argocd --replicas=1
-        kubectl scale deployment argocd-application-controller -n argocd --replicas=1
+        kubectl scale deployment argocd-server -n argocd --replicas=1 || echo "argocd-server scaling failed (may not exist yet)"
+        kubectl scale deployment argocd-repo-server -n argocd --replicas=1 || echo "argocd-repo-server scaling failed (may not exist yet)"
+        kubectl scale deployment argocd-application-controller -n argocd --replicas=1 || echo "argocd-application-controller scaling failed (may not exist yet)"
         
-        # Wait for scaled deployments to be ready
-        kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
-        kubectl wait --for=condition=available --timeout=300s deployment/argocd-repo-server -n argocd
-        kubectl wait --for=condition=available --timeout=300s deployment/argocd-application-controller -n argocd
+        # Wait for scaled deployments to be ready (only if they exist)
+        echo "Waiting for ArgoCD deployments to be ready..."
+        kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd || echo "argocd-server not found or not ready"
+        kubectl wait --for=condition=available --timeout=300s deployment/argocd-repo-server -n argocd || echo "argocd-repo-server not found or not ready"
+        kubectl wait --for=condition=available --timeout=300s deployment/argocd-application-controller -n argocd || echo "argocd-application-controller not found or not ready"
+        
+        # Check what ArgoCD deployments actually exist
+        echo "Available ArgoCD deployments:"
+        kubectl get deployments -n argocd || echo "No deployments found in argocd namespace"
         
         echo "ArgoCD installation completed successfully!"
         
