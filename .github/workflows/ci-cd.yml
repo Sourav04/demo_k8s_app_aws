@@ -501,6 +501,18 @@ jobs:
         cat kubeconfig
         echo "--- End of kubeconfig ---"
         
+        # Try using original kubeconfig first (it should have correct authentication)
+        echo "Trying original kubeconfig with server URL update..."
+        cp kubeconfig_original kubeconfig
+        sed -i "s|server: https://127.0.0.1:6443|server: https://$KUBERNETES_API_LB:6443|g" kubeconfig
+        
+        # Add insecure-skip-tls-verify to cluster section
+        sed -i '/cluster:/a\    insecure-skip-tls-verify: true' kubeconfig
+        
+        echo "Modified original kubeconfig content:"
+        cat kubeconfig
+        echo "--- End of modified original kubeconfig ---"
+        
         timeout 300 bash -c '
           for i in {1..30}; do
             echo "Attempt $i: Testing cluster connectivity..."
@@ -517,28 +529,13 @@ jobs:
           done
         ' || {
           echo "ERROR: Cluster did not become ready within 5 minutes"
-          echo "Trying fallback with original kubeconfig..."
-          
-          # Fallback: Use original kubeconfig with just server update and TLS disabled
-          cp kubeconfig_original kubeconfig
-          sed -i "s|server: https://127.0.0.1:6443|server: https://$KUBERNETES_API_LB:6443|g" kubeconfig
-          
-          # Add insecure-skip-tls-verify to cluster section
-          sed -i '/cluster:/a\    insecure-skip-tls-verify: true' kubeconfig
-          
-          echo "Fallback kubeconfig content:"
+          echo "Final kubeconfig:"
           cat kubeconfig
-          
-          # Test fallback
-          kubectl get nodes --request-timeout=30s || {
-            echo "Fallback also failed. Final kubeconfig:"
-            cat kubeconfig
-            echo "Testing kubectl version:"
-            kubectl version --client
-            echo "Testing server connectivity:"
-            curl -k -v https://$KUBERNETES_API_LB:6443/api 2>&1
-            exit 1
-          }
+          echo "Testing kubectl version:"
+          kubectl version --client
+          echo "Testing server connectivity:"
+          curl -k -v https://$KUBERNETES_API_LB:6443/api 2>&1
+          exit 1
         }
         
         echo "Cluster is ready!"
@@ -549,6 +546,29 @@ jobs:
         # Check Load Balancer and target group health
         echo "Checking Load Balancer and target group health..."
         echo "Load Balancer DNS: $KUBERNETES_API_LB"
+        
+        # First, check if k3s is running on the master node
+        echo "Checking if k3s is running on master node..."
+        aws ssm send-command \
+          --instance-ids "$MASTER_INSTANCE_ID" \
+          --document-name "AWS-RunShellScript" \
+          --parameters 'commands=[
+            "sudo systemctl status k3s",
+            "sudo kubectl get nodes",
+            "sudo kubectl get pods -A"
+          ]' \
+          --query 'Command.CommandId' \
+          --output text > k3s_check_id.txt
+        
+        K3S_CHECK_ID=$(cat k3s_check_id.txt)
+        sleep 15
+        
+        echo "k3s status on master node:"
+        aws ssm get-command-invocation \
+          --command-id "$K3S_CHECK_ID" \
+          --instance-id "$MASTER_INSTANCE_ID" \
+          --query 'StandardOutputContent' \
+          --output text
         
         # Get Load Balancer ARN
         LB_ARN=$(aws elbv2 describe-load-balancers --names k3s-demo-cluster-api-lb --query 'LoadBalancers[0].LoadBalancerArn' --output text 2>/dev/null || echo "")
