@@ -211,6 +211,28 @@ jobs:
       run: terraform refresh
       working-directory: terraform
         
+    - name: Debug Terraform State
+      run: |
+        echo "=== Terraform State Debug ==="
+        echo "Current working directory: $(pwd)"
+        echo "Terraform state file exists: $(ls -la terraform.tfstate* 2>/dev/null || echo 'No state file found')"
+        echo ""
+        echo "=== Terraform Outputs ==="
+        terraform output || echo "No outputs available"
+        echo ""
+        echo "=== Terraform State (JSON) ==="
+        terraform show -json | jq '.values.root_module.resources[] | select(.type == "aws_instance") | {name: .name, id: .values.id, tags: .values.tags}' || echo "Failed to parse state"
+        echo ""
+        echo "=== AWS Instances ==="
+        aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,Tags[?Key==`Name`].Value|[0],State.Name,InstanceType]' --output table || echo "Failed to list instances"
+      working-directory: terraform
+        
+    - name: Install required tools
+      run: |
+        # Install jq for JSON parsing
+        sudo apt-get update
+        sudo apt-get install -y jq
+        
     - name: Setup kubectl
       run: |
         # Install kubectl
@@ -242,36 +264,43 @@ jobs:
         
         if [ -z "$MASTER_INSTANCE_ID" ]; then
           echo "ERROR: master_instance_id output is empty or not found"
-          echo "Trying to get instance ID from AWS directly..."
+          echo "Trying to get instance ID from Terraform state file..."
           
-          # Try multiple approaches to get instance ID
-          echo "Attempting to find master instance by tag..."
-          MASTER_INSTANCE_ID=$(aws ec2 describe-instances \
-            --filters "Name=tag:Name,Values=k3s-demo-cluster-master" \
-            --query 'Reservations[0].Instances[0].InstanceId' \
-            --output text 2>/dev/null || echo "")
+          # Try to get instance ID from Terraform state
+          MASTER_INSTANCE_ID=$(terraform show -json | jq -r '.values.root_module.resources[] | select(.type == "aws_instance" and .name == "k3s_master") | .values.id' 2>/dev/null || echo "")
           
-          if [ -z "$MASTER_INSTANCE_ID" ] || [ "$MASTER_INSTANCE_ID" = "None" ]; then
-            echo "Trying to find instance by cluster name tag..."
+          if [ -z "$MASTER_INSTANCE_ID" ] || [ "$MASTER_INSTANCE_ID" = "null" ]; then
+            echo "Trying to get instance ID from AWS directly..."
+            
+            # Try multiple approaches to get instance ID
+            echo "Attempting to find master instance by tag..."
             MASTER_INSTANCE_ID=$(aws ec2 describe-instances \
-              --filters "Name=tag:kubernetes.io/cluster/k3s-demo-cluster,Values=owned" \
+              --filters "Name=tag:Name,Values=k3s-demo-cluster-master" \
               --query 'Reservations[0].Instances[0].InstanceId' \
               --output text 2>/dev/null || echo "")
-          fi
-          
-          if [ -z "$MASTER_INSTANCE_ID" ] || [ "$MASTER_INSTANCE_ID" = "None" ]; then
-            echo "Trying to find instance by instance type and state..."
-            MASTER_INSTANCE_ID=$(aws ec2 describe-instances \
-              --filters "Name=instance-type,Values=t3.micro" "Name=instance-state-name,Values=running" \
-              --query 'Reservations[0].Instances[0].InstanceId' \
-              --output text 2>/dev/null || echo "")
-          fi
-          
-          if [ -z "$MASTER_INSTANCE_ID" ] || [ "$MASTER_INSTANCE_ID" = "None" ]; then
-            echo "ERROR: Could not find master instance ID"
-            echo "Available instances:"
-            aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,Tags[?Key==`Name`].Value|[0],State.Name,InstanceType]' --output table
-            exit 1
+            
+            if [ -z "$MASTER_INSTANCE_ID" ] || [ "$MASTER_INSTANCE_ID" = "None" ]; then
+              echo "Trying to find instance by cluster name tag..."
+              MASTER_INSTANCE_ID=$(aws ec2 describe-instances \
+                --filters "Name=tag:kubernetes.io/cluster/k3s-demo-cluster,Values=owned" \
+                --query 'Reservations[0].Instances[0].InstanceId' \
+                --output text 2>/dev/null || echo "")
+            fi
+            
+            if [ -z "$MASTER_INSTANCE_ID" ] || [ "$MASTER_INSTANCE_ID" = "None" ]; then
+              echo "Trying to find instance by instance type and state..."
+              MASTER_INSTANCE_ID=$(aws ec2 describe-instances \
+                --filters "Name=instance-type,Values=t3.micro" "Name=instance-state-name,Values=running" \
+                --query 'Reservations[0].Instances[0].InstanceId' \
+                --output text 2>/dev/null || echo "")
+            fi
+            
+            if [ -z "$MASTER_INSTANCE_ID" ] || [ "$MASTER_INSTANCE_ID" = "None" ]; then
+              echo "ERROR: Could not find master instance ID"
+              echo "Available instances:"
+              aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,Tags[?Key==`Name`].Value|[0],State.Name,InstanceType]' --output table
+              exit 1
+            fi
           fi
           
           echo "Found Master Instance ID: $MASTER_INSTANCE_ID"
@@ -279,6 +308,25 @@ jobs:
         
         # Wait for SSM to be available on the instance
         echo "Waiting for SSM to be available on master node..."
+        
+        # Double-check that we have a valid instance ID
+        if [ -z "$MASTER_INSTANCE_ID" ] || [ "$MASTER_INSTANCE_ID" = "None" ] || [ "$MASTER_INSTANCE_ID" = "null" ]; then
+          echo "ERROR: MASTER_INSTANCE_ID is still empty or invalid: '$MASTER_INSTANCE_ID'"
+          echo "Available instances in AWS:"
+          aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,Tags[?Key==`Name`].Value|[0],State.Name,InstanceType]' --output table
+          exit 1
+        fi
+        
+        echo "Using Master Instance ID: '$MASTER_INSTANCE_ID'"
+        
+        # Test SSM connectivity first
+        echo "Testing SSM connectivity..."
+        aws ssm describe-instance-information --filters "Key=InstanceIds,Values=$MASTER_INSTANCE_ID" --query "InstanceInformationList" --output table || {
+          echo "SSM connectivity test failed. Checking instance status..."
+          aws ec2 describe-instances --instance-ids "$MASTER_INSTANCE_ID" --query 'Reservations[0].Instances[0].[State.Name,IamInstanceProfile.Arn]' --output table
+          exit 1
+        }
+        
         timeout 300 bash -c 'until aws ssm describe-instance-information --filters "Key=InstanceIds,Values=$MASTER_INSTANCE_ID" --query "InstanceInformationList[0].PingStatus" --output text | grep -q "Online"; do sleep 10; done'
         
         # Get kubeconfig using SSM
