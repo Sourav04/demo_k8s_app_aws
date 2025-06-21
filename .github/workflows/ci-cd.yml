@@ -422,22 +422,32 @@ jobs:
         
         # Wait for cluster to be ready
         echo "Waiting for cluster to be ready..."
+        echo "Current kubeconfig content:"
+        cat kubeconfig
+        echo "--- End of kubeconfig ---"
+        
         timeout 300 bash -c '
           for i in {1..30}; do
             echo "Attempt $i: Testing cluster connectivity..."
-            if kubectl get nodes --request-timeout=10s 2>/dev/null; then
-              echo "Cluster is accessible!"
-              break
-            fi
-            echo "Cluster not ready yet, waiting 10 seconds..."
-            sleep 10
+            echo "Testing with verbose output:"
+            kubectl get nodes --request-timeout=10s -v=6 2>&1 || {
+              echo "kubectl failed with exit code $?"
+              echo "Testing basic kubectl functionality:"
+              kubectl version --client
+              echo "Testing server connectivity:"
+              curl -k -v https://$KUBERNETES_API_LB:6443/api 2>&1 | head -20
+              echo "Cluster not ready yet, waiting 10 seconds..."
+              sleep 10
+            }
           done
         ' || {
           echo "ERROR: Cluster did not become ready within 5 minutes"
-          echo "Current kubeconfig:"
+          echo "Final kubeconfig:"
           cat kubeconfig
           echo "Testing kubectl version:"
           kubectl version --client
+          echo "Testing server connectivity:"
+          curl -k -v https://$KUBERNETES_API_LB:6443/api 2>&1
           exit 1
         }
         
@@ -445,6 +455,28 @@ jobs:
         kubectl get nodes
         
         echo "Note: Using Load Balancer DNS with TLS verification disabled for development."
+        
+        # Check Load Balancer and target group health
+        echo "Checking Load Balancer and target group health..."
+        echo "Load Balancer DNS: $KUBERNETES_API_LB"
+        
+        # Get Load Balancer ARN
+        LB_ARN=$(aws elbv2 describe-load-balancers --names k3s-demo-cluster-api-lb --query 'LoadBalancers[0].LoadBalancerArn' --output text 2>/dev/null || echo "")
+        if [ -n "$LB_ARN" ]; then
+          echo "Load Balancer ARN: $LB_ARN"
+          
+          # Check target group health
+          TG_ARN=$(aws elbv2 describe-target-groups --load-balancer-arn "$LB_ARN" --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "")
+          if [ -n "$TG_ARN" ]; then
+            echo "Target Group ARN: $TG_ARN"
+            echo "Target Group Health:"
+            aws elbv2 describe-target-health --target-group-arn "$TG_ARN" --query 'TargetHealthDescriptions[*].[Target.Id,TargetHealth.State,TargetHealth.Description]' --output table
+          fi
+        fi
+        
+        # Test basic connectivity to Load Balancer
+        echo "Testing basic connectivity to Load Balancer..."
+        curl -k -I --connect-timeout 10 https://$KUBERNETES_API_LB:6443/ || echo "Failed to connect to Load Balancer"
         
     - name: Install and configure ArgoCD
       run: |
