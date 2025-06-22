@@ -172,34 +172,130 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-west-2
         
+    - name: Download cluster info artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: cluster-info
+        path: terraform/
+        
     - name: Get kubeconfig from infrastructure
       run: |
+        # Install jq for JSON parsing
+        sudo apt-get update
+        sudo apt-get install -y jq
+        
         # Download cluster info from infrastructure workflow
         # This assumes the infrastructure workflow has already run and uploaded cluster info
         echo "Getting cluster information..."
+        
+        # Download the cluster info artifacts from the infrastructure workflow
+        # We need to get the latest successful run of the infrastructure workflow
+        echo "Downloading cluster info artifacts..."
         
         # For now, we'll use a simplified approach
         # In a real scenario, you might want to store kubeconfig in a secure location
         # or use a service account with cluster access
         
-        # Get cluster info from Terraform state (if available)
+        # Check if we have cluster info from a previous run
         if [ -f "terraform/cluster-info.json" ]; then
           echo "Using existing cluster info"
         else
           echo "Cluster info not found. Please ensure infrastructure is deployed first."
+          echo "You can run the infrastructure workflow manually or check if it completed successfully."
           exit 1
         fi
+        
+        # Extract cluster information
+        if [ -f "terraform/cluster-info.json" ]; then
+          echo "Cluster info found. Extracting information..."
+          cat terraform/cluster-info.json | jq -r '.kubernetes_api_lb.value // empty' > kubernetes_api_lb.txt
+          cat terraform/cluster-info.json | jq -r '.master_instance_id.value // empty' > master_instance_id.txt
+          
+          KUBERNETES_API_LB=$(cat kubernetes_api_lb.txt)
+          MASTER_INSTANCE_ID=$(cat master_instance_id.txt)
+          
+          echo "Kubernetes API Load Balancer: $KUBERNETES_API_LB"
+          echo "Master Instance ID: $MASTER_INSTANCE_ID"
+          
+          if [ -z "$KUBERNETES_API_LB" ] || [ -z "$MASTER_INSTANCE_ID" ]; then
+            echo "ERROR: Could not extract cluster information from terraform output"
+            exit 1
+          fi
+        else
+          echo "ERROR: cluster-info.json not found"
+          exit 1
+        fi
+        
+        # Get kubeconfig from master node
+        echo "Getting kubeconfig from master node..."
+        aws ssm send-command \
+          --instance-ids "$MASTER_INSTANCE_ID" \
+          --document-name "AWS-RunShellScript" \
+          --parameters 'commands=[
+            "sudo cat /etc/rancher/k3s/k3s.yaml"
+          ]' \
+          --query 'Command.CommandId' \
+          --output text > kubeconfig_command_id.txt
+        
+        KUBECONFIG_COMMAND_ID=$(cat kubeconfig_command_id.txt)
+        echo "Waiting for kubeconfig command to complete..."
+        sleep 10
+        
+        # Get the kubeconfig content
+        aws ssm get-command-invocation \
+          --command-id "$KUBECONFIG_COMMAND_ID" \
+          --instance-id "$MASTER_INSTANCE_ID" \
+          --query 'StandardOutputContent' \
+          --output text > kubeconfig_original
+        
+        # Update the kubeconfig with the Load Balancer URL
+        sed "s|server: https://127.0.0.1:6443|server: https://$KUBERNETES_API_LB:6443|g" kubeconfig_original > kubeconfig
+        
+        # Add insecure-skip-tls-verify to cluster section and remove certificate authority
+        sed -i '/cluster:/a\    insecure-skip-tls-verify: true' kubeconfig
+        sed -i '/certificate-authority-data:/d' kubeconfig
+        
+        echo "Kubeconfig updated with Load Balancer URL: https://$KUBERNETES_API_LB:6443"
+        
+        # Test cluster connectivity
+        export KUBECONFIG=./kubeconfig
+        echo "Testing cluster connectivity..."
+        kubectl get nodes || {
+          echo "ERROR: Failed to connect to cluster"
+          exit 1
+        }
+        
+        echo "Cluster connectivity successful!"
         
     - name: Deploy ArgoCD Application
       run: |
         echo "Deploying ArgoCD Application with version: ${{ steps.version.outputs.version }}"
         
-        # Update the ArgoCD application with new image tag
-        # This will trigger ArgoCD to sync the new version
-        echo "Application will be deployed via ArgoCD with version: ${{ steps.version.outputs.version }}"
+        # Set KUBECONFIG for this step
+        export KUBECONFIG=./kubeconfig
         
-        # You can also directly apply the ArgoCD application here if needed
-        # kubectl apply -f argocd/application.yaml
+        # Check if ArgoCD is running
+        echo "Checking ArgoCD status..."
+        kubectl get pods -n argocd || {
+          echo "ERROR: ArgoCD is not running. Please ensure infrastructure is deployed first."
+          exit 1
+        }
+        
+        # Apply the ArgoCD application
+        echo "Applying ArgoCD application..."
+        kubectl apply -f argocd/application.yaml || {
+          echo "ERROR: Failed to apply ArgoCD application"
+          exit 1
+        }
+        
+        # Wait for ArgoCD application to be synced
+        echo "Waiting for ArgoCD application to sync..."
+        kubectl wait --for=condition=available --timeout=300s application/python-app -n argocd || {
+          echo "WARNING: ArgoCD application sync timeout. Checking status..."
+          kubectl describe application python-app -n argocd
+        }
+        
+        echo "ArgoCD application deployed successfully!"
         
     - name: Update Helm values with new version
       run: |
@@ -219,6 +315,22 @@ jobs:
     - name: Verify deployment
       run: |
         echo "Verifying deployment..."
+        
+        # Set KUBECONFIG for this step
+        export KUBECONFIG=./kubeconfig
+        
+        # Check if the application is running
+        echo "Checking application status..."
+        kubectl get pods -l app.kubernetes.io/name=python-app || {
+          echo "WARNING: Application pods not found"
+        }
+        
+        # Check ArgoCD application status
+        echo "Checking ArgoCD application status..."
+        kubectl get application python-app -n argocd -o yaml | grep -A 5 "status:" || {
+          echo "WARNING: ArgoCD application status not available"
+        }
+        
         echo "Application version ${{ steps.version.outputs.version }} has been deployed"
         echo "ArgoCD will automatically sync the new version"
 
