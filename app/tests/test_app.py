@@ -17,9 +17,11 @@ def test_home_page(client):
 
 def test_health_endpoint(client):
     """Test the health check endpoint"""
-    response = client.get('/health')
-    assert response.status_code == 200
-    assert b'healthy' in response.data.lower()
+    with patch('src.app.redis_client') as mock_redis:
+        mock_redis.ping.return_value = True
+        response = client.get('/health')
+        assert response.status_code == 200
+        assert b'healthy' in response.data.lower()
 
 def test_health_endpoint_redis_down(client):
     """Test health endpoint when Redis is down"""
@@ -35,7 +37,7 @@ def test_metrics_endpoint(client):
     """Test the metrics endpoint"""
     response = client.get('/metrics')
     assert response.status_code == 200
-    assert b'python_app_visits_total' in response.data
+    assert b'visitor_count_total' in response.data
 
 def test_api_visitors(client):
     """Test the API visitors endpoint"""
@@ -66,6 +68,16 @@ def test_redis_connection_error(client):
         mock_redis.incr.side_effect = Exception("Connection failed")
         response = client.get('/')
         assert response.status_code == 500
+
+def test_version_endpoint(client):
+    """Test the version endpoint"""
+    response = client.get('/version')
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert 'version' in data
+    assert 'build_date' in data
+    assert 'vcs_ref' in data
+    assert 'github_run_id' in data
 
 if __name__ == '__main__':
     pytest.main([__file__]) 
