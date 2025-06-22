@@ -9,7 +9,7 @@ environment: "dev"
 replicaCount: 2
 
 image:
-  repository: sourav04/demo_k8s_app_aws
+  repository: souravdixit04/demo_k8s_app_aws
   tag: main
   pullPolicy: Always
 
