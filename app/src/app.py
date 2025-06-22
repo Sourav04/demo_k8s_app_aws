@@ -15,6 +15,12 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Application version information
+APP_VERSION = os.getenv('APP_VERSION', 'v1.0.0-dev')
+BUILD_DATE = os.getenv('BUILD_DATE', 'unknown')
+VCS_REF = os.getenv('VCS_REF', 'unknown')
+GITHUB_ACTIONS_RUN_ID = os.getenv('GITHUB_RUN_ID', 'unknown')
+
 app = Flask(__name__)
 
 # Redis configuration
@@ -76,7 +82,11 @@ def health():
     health_status = {
         'status': 'healthy',
         'timestamp': time.time(),
-        'redis': 'connected' if redis_client and redis_client.ping() else 'disconnected'
+        'redis': 'connected' if redis_client and redis_client.ping() else 'disconnected',
+        'version': APP_VERSION,
+        'build_date': BUILD_DATE,
+        'vcs_ref': VCS_REF,
+        'github_run_id': GITHUB_ACTIONS_RUN_ID
     }
     
     status_code = 200 if health_status['redis'] == 'connected' else 503
@@ -85,6 +95,25 @@ def health():
     REQUEST_LATENCY.observe(time.time() - start_time)
     
     return jsonify(health_status), status_code
+
+@app.route('/version')
+def version():
+    """Version information endpoint for ArgoCD testing"""
+    start_time = time.time()
+    
+    version_info = {
+        'version': APP_VERSION,
+        'build_date': BUILD_DATE,
+        'vcs_ref': VCS_REF,
+        'github_run_id': GITHUB_ACTIONS_RUN_ID,
+        'timestamp': time.time(),
+        'environment': os.getenv('FLASK_ENV', 'production')
+    }
+    
+    REQUEST_COUNT.labels(method='GET', endpoint='/version', status=200).inc()
+    REQUEST_LATENCY.observe(time.time() - start_time)
+    
+    return jsonify(version_info), 200
 
 @app.route('/metrics')
 def metrics():
@@ -153,4 +182,9 @@ if __name__ == '__main__':
     debug = os.getenv('FLASK_ENV') == 'development'
     
     logger.info(f"Starting Flask application on port {port}")
+    logger.info(f"Application version: {APP_VERSION}")
+    logger.info(f"Build date: {BUILD_DATE}")
+    logger.info(f"VCS ref: {VCS_REF}")
+    logger.info(f"GitHub Run ID: {GITHUB_ACTIONS_RUN_ID}")
+    
     app.run(host='0.0.0.0', port=port, debug=debug) 

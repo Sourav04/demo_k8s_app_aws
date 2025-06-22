@@ -59,4 +59,100 @@ Create the name of the service account to use
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
+{{- end }}
+
+{{/*
+Get environment-specific replica count
+*/}}
+{{- define "python-app.replicaCount" -}}
+{{- $env := .Values.environment | default "dev" }}
+{{- if hasKey .Values.replicaCounts $env }}
+{{- index .Values.replicaCounts $env }}
+{{- else }}
+{{- .Values.replicaCount }}
+{{- end }}
+{{- end }}
+
+{{/*
+Get environment-specific resources
+*/}}
+{{- define "python-app.resources" -}}
+{{- $env := .Values.environment | default "dev" }}
+{{- $defaultResources := .Values.resources }}
+{{- if and (hasKey .Values.resources "environments") (hasKey .Values.resources.environments $env) }}
+{{- $envResources := index .Values.resources.environments $env }}
+{{- merge $defaultResources $envResources }}
+{{- else }}
+{{- $defaultResources }}
+{{- end }}
+{{- end }}
+
+{{/*
+Get environment-specific autoscaling configuration
+*/}}
+{{- define "python-app.autoscaling" -}}
+{{- $env := .Values.environment | default "dev" }}
+{{- $defaultAutoscaling := .Values.autoscaling }}
+{{- if and (hasKey .Values.autoscaling "environments") (hasKey .Values.autoscaling.environments $env) }}
+{{- $envAutoscaling := index .Values.autoscaling.environments $env }}
+{{- merge $defaultAutoscaling $envAutoscaling }}
+{{- else }}
+{{- $defaultAutoscaling }}
+{{- end }}
+{{- end }}
+
+{{/*
+Get environment-specific Redis configuration
+*/}}
+{{- define "python-app.redis" -}}
+{{- $env := .Values.environment | default "dev" }}
+{{- $defaultRedis := .Values.redis }}
+{{- if and (hasKey .Values.redis "environments") (hasKey .Values.redis.environments $env) }}
+{{- $envRedis := index .Values.redis.environments $env }}
+{{- merge $defaultRedis $envRedis }}
+{{- else }}
+{{- $defaultRedis }}
+{{- end }}
+{{- end }}
+
+{{/*
+Get environment-specific environment variables
+*/}}
+{{- define "python-app.env" -}}
+{{- $env := .Values.environment | default "dev" }}
+{{- $defaultEnv := .Values.env }}
+{{- if and (hasKey .Values.env "environments") (hasKey .Values.env.environments $env) }}
+{{- $envVars := index .Values.env.environments $env }}
+{{- merge $defaultEnv $envVars }}
+{{- else }}
+{{- $defaultEnv }}
+{{- end }}
+{{- end }}
+
+{{/*
+Get environment-specific probes
+*/}}
+{{- define "python-app.probes" -}}
+{{- $env := .Values.environment | default "dev" }}
+{{- $defaultProbes := .Values.probes }}
+{{- if and (hasKey .Values.probes "environments") (hasKey .Values.probes.environments $env) }}
+{{- $envProbes := index .Values.probes.environments $env }}
+{{- merge $defaultProbes $envProbes }}
+{{- else }}
+{{- $defaultProbes }}
+{{- end }}
+{{- end }}
+
+{{/*
+Get environment-specific monitoring configuration
+*/}}
+{{- define "python-app.monitoring" -}}
+{{- $env := .Values.environment | default "dev" }}
+{{- $defaultMonitoring := .Values.monitoring }}
+{{- if and (hasKey .Values.monitoring "environments") (hasKey .Values.monitoring.environments $env) }}
+{{- $envMonitoring := index .Values.monitoring.environments $env }}
+{{- merge $defaultMonitoring $envMonitoring }}
+{{- else }}
+{{- $defaultMonitoring }}
+{{- end }}
 {{- end }} 

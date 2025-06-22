@@ -5,8 +5,9 @@ metadata:
   labels:
     {{- include "python-app.labels" . | nindent 4 }}
 spec:
-  {{- if not .Values.autoscaling.enabled }}
-  replicas: {{ .Values.replicaCount }}
+  {{- $autoscaling := include "python-app.autoscaling" . | fromYaml }}
+  {{- if not $autoscaling.enabled }}
+  replicas: {{ include "python-app.replicaCount" . }}
   {{- end }}
   selector:
     matchLabels:
@@ -17,7 +18,8 @@ spec:
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.monitoring.enabled }}
+      {{- $monitoring := include "python-app.monitoring" . | fromYaml }}
+      {{- if $monitoring.enabled }}
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "5000"
@@ -44,20 +46,24 @@ spec:
               containerPort: 5000
               protocol: TCP
           env:
-            {{- range $key, $value := .Values.env }}
+            {{- $env := include "python-app.env" . | fromYaml }}
+            {{- range $key, $value := $env }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
-            {{- if .Values.redis.enabled }}
+            {{- $redis := include "python-app.redis" . | fromYaml }}
+            {{- if $redis.enabled }}
             - name: REDIS_HOST
               value: "{{ .Release.Name }}-redis"
             {{- end }}
+          {{- $probes := include "python-app.probes" . | fromYaml }}
           livenessProbe:
-            {{- toYaml .Values.probes.livenessProbe | nindent 12 }}
+            {{- toYaml $probes.livenessProbe | nindent 12 }}
           readinessProbe:
-            {{- toYaml .Values.probes.readinessProbe | nindent 12 }}
+            {{- toYaml $probes.readinessProbe | nindent 12 }}
+          {{- $resources := include "python-app.resources" . | fromYaml }}
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- toYaml $resources | nindent 12 }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

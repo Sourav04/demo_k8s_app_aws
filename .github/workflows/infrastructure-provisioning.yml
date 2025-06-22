@@ -1,10 +1,15 @@
-name: CI/CD Pipeline
+name: Infrastructure Provisioning
 
 on:
   push:
     branches: [ main, develop ]
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/infrastructure-provisioning.yml'
   pull_request:
     branches: [ main ]
+    paths:
+      - 'terraform/**'
 
 env:
   REGISTRY: ghcr.io
@@ -15,114 +20,9 @@ permissions:
   security-events: write
 
 jobs:
-  test:
-    name: Run Tests
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r app/requirements.txt
-        pip install pytest pytest-cov flake8
-        
-    - name: Run linting
-      run: |
-        flake8 app/src/ --count --select=E9,F63,F7,F82 --show-source --statistics
-        flake8 app/src/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-        
-    - name: Run unit tests
-      run: |
-        cd app
-        python -m pytest tests/ -v --cov=src --cov-report=xml
-        
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./app/coverage.xml
-        flags: unittests
-        name: codecov-umbrella
-
-  security-scan:
-    name: Security Scan
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@master
-      with:
-        scan-type: 'fs'
-        scan-ref: '.'
-        format: 'sarif'
-        output: 'trivy-results.sarif'
-        
-    - name: Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@v3
-      if: always()
-      with:
-        sarif_file: 'trivy-results.sarif'
-
-  build-and-push:
-    name: Build and Push Docker Image
-    runs-on: ubuntu-latest
-    needs: [test, security-scan]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      
-    - name: Log in to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
-        
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-        tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
-          type=sha
-          
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: Dockerfile
-        push: true
-        tags: |
-          souravdixit04/demo_k8s_app_aws:main
-          souravdixit04/demo_k8s_app_aws:${{ github.sha }}
-          souravdixit04/demo_k8s_app_aws:${{ github.run_number }}-${{ github.sha }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
   terraform-plan:
     name: Terraform Plan
     runs-on: ubuntu-latest
-    needs: [test, security-scan]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
     steps:
     - name: Checkout code
@@ -164,7 +64,7 @@ jobs:
   deploy-infrastructure:
     name: Deploy Infrastructure
     runs-on: ubuntu-latest
-    needs: [build-and-push, terraform-plan]
+    needs: [terraform-plan]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
     steps:
@@ -188,8 +88,10 @@ jobs:
       with:
         name: tfplan
         path: terraform
+        
     - name: Rename lockfile back to .terraform.lock.hcl
       run: mv terraform/lockfile.hcl terraform/.terraform.lock.hcl
+      
     - name: Verify downloaded files
       run: |
         echo "Downloaded artifact contents:"
@@ -655,61 +557,6 @@ jobs:
         echo "ArgoCD admin password: $ARGOCD_PASSWORD" > argocd-info.txt
         echo "ArgoCD UI will be available at: http://$KUBERNETES_API_LB:8080" >> argocd-info.txt
         
-    - name: Deploy ArgoCD Application
-      run: |
-        cd terraform
-        export KUBECONFIG=./kubeconfig
-        
-        echo "Deploying ArgoCD Application..."
-        
-        # Apply the ArgoCD application manifest
-        kubectl apply -f ../argocd/application.yaml
-        
-        # Wait for the application to be synced
-        echo "Waiting for ArgoCD application to sync..."
-        kubectl wait --for=condition=healthy --timeout=300s application/python-app -n argocd || {
-          echo "Application sync failed. Checking ArgoCD application status..."
-          kubectl describe application python-app -n argocd
-          echo "Continuing..."
-        }
-        
-        echo "ArgoCD application deployment completed!"
-        
-    - name: Deploy application with Helm
-      run: |
-        cd terraform
-        export KUBECONFIG=./kubeconfig
-        
-        # Install Helm
-        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-        
-        # Deploy the application
-        echo "Deploying application with Helm..."
-        helm upgrade --install python-app ../helm/python-app \
-          --set image.repository=souravdixit04/demo_k8s_app_aws \
-          --set image.tag=${{ github.run_number }}-${{ github.sha }} \
-          --set monitoring.serviceMonitor.enabled=false \
-          --wait --timeout=300s
-        
-        echo "Application deployment completed!"
-        
-    - name: Verify deployment
-      run: |
-        cd terraform
-        export KUBECONFIG=./kubeconfig
-        
-        echo "Verifying deployment..."
-        kubectl get pods -A
-        kubectl get svc -A
-        
-        # Check if ArgoCD is running
-        echo "ArgoCD status:"
-        kubectl get pods -n argocd
-        
-        # Check if application is running
-        echo "Application status:"
-        kubectl get pods -l app=python-app
-        
     - name: Get cluster info
       run: |
         cd terraform
@@ -730,7 +577,7 @@ jobs:
           terraform/cluster-info.txt
 
   notify:
-    name: Notify Deployment
+    name: Notify Infrastructure Deployment
     runs-on: ubuntu-latest
     needs: [deploy-infrastructure]
     if: always()
@@ -747,11 +594,8 @@ jobs:
       uses: 8398a7/action-slack@v3
       with:
         status: success
-        channel: '#new-channel'
-        author_name: GitHub Actions
+        channel: '#infrastructure'
+        author_name: Infrastructure Pipeline
         github_token: ${{ secrets.GITHUB_TOKEN }}
       env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        REGISTRY: ghcr.io
-        IMAGE_NAME: souravdixit04/demo_k8s_app_aws
-
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }} 

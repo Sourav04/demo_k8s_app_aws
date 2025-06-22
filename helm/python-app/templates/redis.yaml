@@ -1,4 +1,5 @@
-{{- if .Values.redis.enabled }}
+{{- $redis := include "python-app.redis" . | fromYaml }}
+{{- if $redis.enabled }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -21,15 +22,15 @@ spec:
     spec:
       containers:
         - name: redis
-          image: "{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}"
-          imagePullPolicy: {{ .Values.redis.image.pullPolicy }}
+          image: "{{ $redis.image.repository }}:{{ $redis.image.tag }}"
+          imagePullPolicy: {{ $redis.image.pullPolicy }}
           ports:
             - name: redis
               containerPort: 6379
               protocol: TCP
           resources:
-            {{- toYaml .Values.redis.resources | nindent 12 }}
-          {{- if .Values.redis.persistence.enabled }}
+            {{- toYaml $redis.resources | nindent 12 }}
+          {{- if $redis.persistence.enabled }}
           volumeMounts:
             - name: redis-data
               mountPath: /data
@@ -44,10 +45,10 @@ spec:
               port: 6379
             initialDelaySeconds: 5
             periodSeconds: 5
-      {{- if .Values.redis.persistence.enabled }}
+      {{- if $redis.persistence.enabled }}
       volumes:
         - name: redis-data
-          {{- if .Values.redis.persistence.storageClass }}
+          {{- if $redis.persistence.storageClass }}
           persistentVolumeClaim:
             claimName: {{ include "python-app.fullname" . }}-redis-pvc
           {{- else }}
@@ -72,7 +73,7 @@ spec:
   selector:
     {{- include "python-app.selectorLabels" . | nindent 4 }}
     component: redis
-{{- if and .Values.redis.enabled .Values.redis.persistence.enabled .Values.redis.persistence.storageClass }}
+{{- if and $redis.enabled $redis.persistence.enabled $redis.persistence.storageClass }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -84,9 +85,9 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: {{ .Values.redis.persistence.storageClass }}
+  storageClassName: {{ $redis.persistence.storageClass }}
   resources:
     requests:
-      storage: {{ .Values.redis.persistence.size }}
+      storage: {{ $redis.persistence.size }}
 {{- end }}
 {{- end }} 

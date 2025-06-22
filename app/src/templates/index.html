@@ -27,7 +27,7 @@
             padding: 3rem;
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
             text-align: center;
-            max-width: 600px;
+            max-width: 700px;
             width: 90%;
             backdrop-filter: blur(10px);
         }
@@ -51,6 +51,35 @@
             color: #7f8c8d;
             margin-bottom: 2rem;
             font-size: 1.2rem;
+        }
+
+        .version-info {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            padding: 1rem;
+            border-radius: 10px;
+            margin: 1rem 0;
+            font-size: 0.9rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 0.5rem;
+        }
+
+        .version-item {
+            text-align: center;
+        }
+
+        .version-label {
+            font-weight: bold;
+            opacity: 0.9;
+        }
+
+        .version-value {
+            font-family: 'Courier New', monospace;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 0.2rem 0.5rem;
+            border-radius: 5px;
+            margin-top: 0.2rem;
         }
 
         .counter-card {
@@ -96,6 +125,46 @@
         .feature p {
             color: #7f8c8d;
             font-size: 0.9rem;
+        }
+
+        .github-actions {
+            background: linear-gradient(135deg, #24292e 0%, #586069 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 15px;
+            margin: 2rem 0;
+            text-align: left;
+        }
+
+        .github-actions h3 {
+            text-align: center;
+            margin-bottom: 1rem;
+            font-size: 1.3rem;
+        }
+
+        .workflow-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .workflow-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+        }
+
+        .workflow-name {
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            color: #28a745;
+        }
+
+        .workflow-desc {
+            font-size: 0.85rem;
+            opacity: 0.9;
         }
 
         .status {
@@ -145,6 +214,14 @@
             .counter-value {
                 font-size: 3rem;
             }
+
+            .version-info {
+                grid-template-columns: 1fr;
+            }
+
+            .workflow-info {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -154,9 +231,44 @@
         <h1>Kubernetes Sample App</h1>
         <p class="subtitle">A modern Flask application running on k3s with visitor tracking</p>
         
+        <!-- Version Information -->
+        <div class="version-info" id="version-info">
+            <div class="version-item">
+                <div class="version-label">App Version</div>
+                <div class="version-value" id="app-version">Loading...</div>
+            </div>
+            <div class="version-item">
+                <div class="version-label">Build Date</div>
+                <div class="version-value" id="build-date">Loading...</div>
+            </div>
+            <div class="version-item">
+                <div class="version-label">Git Commit</div>
+                <div class="version-value" id="git-commit">Loading...</div>
+            </div>
+            <div class="version-item">
+                <div class="version-label">GitHub Run ID</div>
+                <div class="version-value" id="github-run-id">Loading...</div>
+            </div>
+        </div>
+        
         <div class="counter-card">
             <div class="counter-label">Total Visitors</div>
             <div class="counter-value" id="visitor-count">{{ visitor_count }}</div>
+        </div>
+
+        <!-- GitHub Actions Information -->
+        <div class="github-actions">
+            <h3>🔄 GitHub Actions CI/CD Pipeline</h3>
+            <div class="workflow-info">
+                <div class="workflow-item">
+                    <div class="workflow-name">Infrastructure Provisioning</div>
+                    <div class="workflow-desc">Automated Terraform deployment for AWS infrastructure, k3s cluster setup, and ArgoCD installation. Triggers on terraform/ changes.</div>
+                </div>
+                <div class="workflow-item">
+                    <div class="workflow-name">Application Deployment</div>
+                    <div class="workflow-desc">Multi-stage Docker build, security scanning, testing, and ArgoCD deployment. Triggers on app/ helm/ argocd/ changes.</div>
+                </div>
+            </div>
         </div>
 
         <div class="features">
@@ -186,7 +298,7 @@
     </div>
 
     <script>
-        // Function to refresh visitor count and health status
+        // Function to refresh visitor count, health status, and version info
         async function refreshData() {
             try {
                 // Get visitor count
@@ -208,6 +320,16 @@
                     statusDiv.className = 'status error';
                     statusText.textContent = `Unhealthy - Redis: ${healthData.redis}`;
                 }
+
+                // Get version information
+                const versionResponse = await fetch('/version');
+                const versionData = await versionResponse.json();
+                
+                document.getElementById('app-version').textContent = versionData.version;
+                document.getElementById('build-date').textContent = new Date(versionData.build_date).toLocaleDateString();
+                document.getElementById('git-commit').textContent = versionData.vcs_ref.substring(0, 8);
+                document.getElementById('github-run-id').textContent = versionData.github_run_id;
+
             } catch (error) {
                 console.error('Error refreshing data:', error);
                 document.getElementById('status').className = 'status error';
