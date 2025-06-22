@@ -10,9 +10,9 @@ This project demonstrates a production-ready Kubernetes setup with a Python Flas
 
 > 💡 **Note**: The demo environment may be temporarily offline to save costs, but can be brought up on demand. The infrastructure is fully automated and can be deployed in minutes!
 
-## 🎯 What You'll Learn
+## 🎯 This project showcases:
 
-This project showcases:
+
 - **Modern CI/CD**: Separate workflows for infrastructure and application deployment
 - **GitOps**: ArgoCD for declarative application management
 - **Infrastructure as Code**: Terraform for reproducible AWS infrastructure
