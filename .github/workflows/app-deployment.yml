@@ -177,6 +177,7 @@ jobs:
       with:
         name: cluster-info
         path: terraform/
+      continue-on-error: true
         
     - name: Get kubeconfig from infrastructure
       run: |
@@ -188,21 +189,74 @@ jobs:
         # This assumes the infrastructure workflow has already run and uploaded cluster info
         echo "Getting cluster information..."
         
-        # Download the cluster info artifacts from the infrastructure workflow
-        # We need to get the latest successful run of the infrastructure workflow
-        echo "Downloading cluster info artifacts..."
-        
-        # For now, we'll use a simplified approach
-        # In a real scenario, you might want to store kubeconfig in a secure location
-        # or use a service account with cluster access
-        
         # Check if we have cluster info from a previous run
         if [ -f "terraform/cluster-info.json" ]; then
-          echo "Using existing cluster info"
+          echo "Using existing cluster info from artifacts"
         else
-          echo "Cluster info not found. Please ensure infrastructure is deployed first."
-          echo "You can run the infrastructure workflow manually or check if it completed successfully."
-          exit 1
+          echo "Cluster info artifacts not found. Trying alternative methods..."
+          
+          # Try to get cluster info from Terraform state if available
+          if [ -f "terraform/terraform.tfstate" ]; then
+            echo "Found Terraform state file. Extracting cluster info..."
+            cd terraform
+            terraform output -json > cluster-info.json
+            cd ..
+          else
+            echo "No Terraform state found. Checking for running infrastructure..."
+            
+            # Try to find running infrastructure using AWS CLI
+            echo "Searching for running k3s demo infrastructure..."
+            
+            # Look for instances with k3s demo tags
+            INSTANCES=$(aws ec2 describe-instances \
+              --filters "Name=tag:Project,Values=k3s-demo" "Name=instance-state-name,Values=running" \
+              --query 'Reservations[*].Instances[*].[InstanceId,Tags[?Key==`Name`].Value|[0]]' \
+              --output text)
+            
+            if [ -n "$INSTANCES" ]; then
+              echo "Found running instances:"
+              echo "$INSTANCES"
+              
+              # Extract master instance ID (assuming first instance is master)
+              MASTER_INSTANCE_ID=$(echo "$INSTANCES" | head -1 | cut -f1)
+              echo "Using master instance: $MASTER_INSTANCE_ID"
+              
+              # Look for Load Balancer
+              LB_DNS=$(aws elbv2 describe-load-balancers \
+                --names k3s-demo-cluster-api-lb \
+                --query 'LoadBalancers[0].DNSName' \
+                --output text 2>/dev/null || echo "")
+              
+              if [ -n "$LB_DNS" ] && [ "$LB_DNS" != "None" ]; then
+                echo "Found Load Balancer: $LB_DNS"
+                
+                # Create cluster-info.json manually
+                cat > terraform/cluster-info.json << EOF
+{
+  "kubernetes_api_lb": {
+    "value": "$LB_DNS"
+  },
+  "master_instance_id": {
+    "value": "$MASTER_INSTANCE_ID"
+  }
+}
+EOF
+                echo "Created cluster-info.json with existing infrastructure"
+              else
+                echo "ERROR: Load Balancer not found. Please ensure infrastructure is properly deployed."
+                exit 1
+              fi
+            else
+              echo "ERROR: No running k3s demo infrastructure found."
+              echo "Please run the infrastructure workflow first:"
+              echo "1. Go to Actions tab"
+              echo "2. Select 'Infrastructure Provisioning' workflow"
+              echo "3. Click 'Run workflow'"
+              echo "4. Wait for completion"
+              echo "5. Then run this workflow again"
+              exit 1
+            fi
+          fi
         fi
         
         # Extract cluster information
