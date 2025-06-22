@@ -1,6 +1,6 @@
 # 🚀 Kubernetes Demo Project - Complete CI/CD Pipeline
 
-> **A real-world example of modern cloud-native application deployment with GitOps, Infrastructure as Code, and automated CI/CD pipelines.**
+ ** real-world example of modern cloud-native application deployment with GitOps, Infrastructure as Code, and automated CI/CD pipelines.**
 
 This project demonstrates a production-ready Kubernetes setup with a Python Flask application, automated infrastructure provisioning using Terraform, modern CI/CD with GitHub Actions and ArgoCD, and comprehensive monitoring. Perfect for learning cloud-native development or as a template for your next project!
 
