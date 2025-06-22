@@ -231,16 +231,14 @@ jobs:
                 echo "Found Load Balancer: $LB_DNS"
                 
                 # Create cluster-info.json manually
-                cat > terraform/cluster-info.json << EOF
-{
-  "kubernetes_api_lb": {
-    "value": "$LB_DNS"
-  },
-  "master_instance_id": {
-    "value": "$MASTER_INSTANCE_ID"
-  }
-}
-EOF
+                echo '{' > terraform/cluster-info.json
+                echo '  "kubernetes_api_lb": {' >> terraform/cluster-info.json
+                echo '    "value": "'$LB_DNS'"' >> terraform/cluster-info.json
+                echo '  },' >> terraform/cluster-info.json
+                echo '  "master_instance_id": {' >> terraform/cluster-info.json
+                echo '    "value": "'$MASTER_INSTANCE_ID'"' >> terraform/cluster-info.json
+                echo '  }' >> terraform/cluster-info.json
+                echo '}' >> terraform/cluster-info.json
                 echo "Created cluster-info.json with existing infrastructure"
               else
                 echo "ERROR: Load Balancer not found. Please ensure infrastructure is properly deployed."
