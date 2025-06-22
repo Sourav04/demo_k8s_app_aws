@@ -14,7 +14,7 @@ spec:
     helm:
       values: |
         image:
-          repository: Sourav04/demo_k8s_app_aws
+          repository: sourav04/demo_k8s_app_aws
           tag: main
         service:
           type: LoadBalancer

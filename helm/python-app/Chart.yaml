@@ -8,9 +8,9 @@ keywords:
   - python
   - flask
   - kubernetes
-home: https://github.com/Sourav04/demo_k8s_app_aws
+home: https://github.com/sourav04/demo_k8s_app_aws
 sources:
-  - https://github.com/Sourav04/demo_k8s_app_aws
+  - https://github.com/sourav04/demo_k8s_app_aws
 maintainers:
   - name: Sourav Dixit
     email: souravdixit04@gmail.com 
