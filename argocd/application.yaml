@@ -8,13 +8,13 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/souravdixit04/k3_demo.git
+    repoURL: https://github.com/Sourav04/demo_k8s_app_aws.git
     targetRevision: main
     path: helm/python-app
     helm:
       values: |
         image:
-          repository: souravdixit04/demo_k8s_app_aws
+          repository: Sourav04/demo_k8s_app_aws
           tag: main
         service:
           type: LoadBalancer

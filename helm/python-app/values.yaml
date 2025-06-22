@@ -9,8 +9,8 @@ environment: "dev"
 replicaCount: 2
 
 image:
-  repository: souravdixit04/demo_k8s_app_aws
-  tag: "latest"
+  repository: Sourav04/demo_k8s_app_aws
+  tag: main
   pullPolicy: Always
 
 imagePullSecrets: []
