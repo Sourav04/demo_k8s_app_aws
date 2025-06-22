@@ -33,8 +33,9 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy Python packages from builder stage
-COPY --from=builder /app/packages /app/packages
+# Install Python packages directly in runtime stage
+COPY app/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/src/ src/
 RUN mkdir -p /app/src/templates
@@ -43,9 +44,6 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser \
     && chown -R appuser:appuser /app
 
 USER appuser
-
-ENV PATH=/app/packages/bin:$PATH
-ENV PYTHONPATH=/app/packages
 
 ENV APP_VERSION=$APP_VERSION
 ENV BUILD_DATE=$BUILD_DATE
