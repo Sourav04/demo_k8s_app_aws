@@ -17,7 +17,8 @@ spec:
           repository: souravdixit04/demo_k8s_app_aws
           tag: main
         service:
-          type: LoadBalancer
+          type: NodePort
+          nodePort: 30080
         replicaCount: 2
         resources:
           requests:

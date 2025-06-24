@@ -31,13 +31,13 @@ variable "instance_type" {
 variable "worker_count" {
   description = "Number of worker nodes"
   type        = number
-  default     =   1
+  default     =   0
 }
 
 variable "worker_min_count" {
   description = "Minimum number of worker nodes"
   type        = number
-  default     = 1
+  default     = 0
 }
 
 variable "worker_max_count" {
