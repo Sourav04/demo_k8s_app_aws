@@ -10,6 +10,9 @@ This project demonstrates a production-ready Kubernetes setup with a Python Flas
 
 > 💡 **Note**: The demo environment may be temporarily offline to save costs, but can be brought up on demand. The infrastructure is fully automated and can be deployed in minutes!
 
+![Screenshot 2025-06-22 at 12 25 29 AM](https://github.com/user-attachments/assets/e4da7dea-7a41-4906-bb84-2c2e492fe17a)
+
+
 ## 🎯 This project showcases:
 
 
